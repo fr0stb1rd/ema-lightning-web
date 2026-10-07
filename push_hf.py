@@ -68,8 +68,13 @@ for in-browser inference (produced by [fr0stb1rd/ema-lightning-web](https://gith
 - `sound_stage.onnx`: 4-step DiT → 25 Hz latents
 - `decoder.onnx`: HiFi-GAN → 48 kHz audio
 
-Demo: https://fr0stb1rd.github.io/ema-lightning-web/
-License: Apache-2.0 (same as the original model).
+Live: https://fr0stb1rd.github.io/ema-lightning-web/
+
+## Disclaimer
+
+The models in this repository are licensed under the **Apache License 2.0**.
+This software comes with no warranty. By using it, you agree that you have
+read and accepted the [LICENSE](https://github.com/fr0stb1rd/ema-lightning-web/blob/main/LICENSE).
 """
 
 
