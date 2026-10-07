@@ -15,15 +15,15 @@ const MAX_WORD_FRAMES = 250, MAX_FRAMES = 3000, MAX_LETTERS = 250;
 const BROWSER_TR = (navigator.language || "tr").toLowerCase().startsWith("tr");
 const PREFS_KEY = "ema-lightning-web-prefs";
 let prefs = { theme: "system", lang: "auto" };
-try { Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || "{}")); } catch {}
+try { Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || "{}")); } catch { }
 if (!["system", "light", "dark"].includes(prefs.theme)) prefs.theme = "system";
 if (!["auto", "tr", "en"].includes(prefs.lang)) prefs.lang = "auto";
-const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {} };
+const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { } };
 const effLang = () => prefs.lang === "auto" ? (BROWSER_TR ? "tr" : "en") : prefs.lang;
 const T = {
   tr: {
-    title: "⚡ EMA Lightning (tarayıcıda)",
-    sub: "Türkçe metinden sese. Sunucu yok — her şey cihazınızda olur. Sayıları yazıyla yazın (örn. “bin iki yüz elli”).",
+    title: "⚡ EMA Lightning ONNX (Tarayıcıda)",
+    sub: "Tarayıcıda çevrimdışı Türkçe TTS. Sunucu yok — her şey cihazınızda olur. Sayıları yazıyla yazın (örn. “bin iki yüz elli”).",
     ph: "Okunacak Türkçe metni yazın…",
     ex: "Örnekler:", exN: (i) => `Örnek ${i + 1}`,
     speed: "Hız:", say: "Sesi Üret", busy: "Üretiliyor…",
@@ -42,8 +42,8 @@ const T = {
     lang: "Dil:", langAuto: "Otomatik",
   },
   en: {
-    title: "⚡ EMA Lightning (in-browser)",
-    sub: "Turkish text-to-speech. No server — everything runs on your device. Write numbers out in Turkish words (e.g. “bin iki yüz elli”).",
+    title: "⚡ EMA Lightning ONNX (in-browser)",
+    sub: "Offline Turkish TTS in your browser. No server — everything runs on your device. Write numbers out in Turkish words (e.g. “bin iki yüz elli”).",
     ph: "Type Turkish text to speak…",
     ex: "Examples:", exN: (i) => `Example ${i + 1}`,
     speed: "Speed:", say: "Speak", busy: "Working…",
@@ -86,7 +86,7 @@ const ui = new UI();
 const $ = (id) => document.getElementById(id);
 const fmtMB = (b) => b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
 const fmtS = (s) => s < 60 ? `${Math.round(s)}` : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
-const esc = (s) => s.replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 // Indirilen dosya adi: tarih + soylenen yazi (en fazla 40 harf, guvenli karakterler).
 function dlName(text) {
@@ -126,7 +126,7 @@ const stampCache = (url) => {
   try {
     const m = cacheTs(); m[url] = Date.now();
     localStorage.setItem(TS_KEY, JSON.stringify(m));
-  } catch {}
+  } catch { }
 };
 async function cachedResponse(url) {
   const jar = ("caches" in self) ? await caches.open(CACHE_NAME).catch(() => null) : null;
@@ -134,13 +134,13 @@ async function cachedResponse(url) {
     const hit = await jar.match(url).catch(() => null);
     if (hit) {
       if (Date.now() - (cacheTs()[url] || 0) < CACHE_TTL) return { res: hit, fromCache: true, jar };
-      jar.delete(url).catch(() => {}); // suresi dolmus: sil, agdan indir
+      jar.delete(url).catch(() => { }); // suresi dolmus: sil, agdan indir
     }
   }
   const net = await fetch(url);
   if (!net.ok) throw new Error(`${url.split("/").pop()} (HTTP ${net.status})`);
   if (jar && (net.type === "basic" || net.type === "cors")) {
-    jar.put(url, net.clone()).catch(() => {});
+    jar.put(url, net.clone()).catch(() => { });
     stampCache(url);
   }
   return { res: net, fromCache: false, jar };
@@ -151,7 +151,7 @@ async function fetchBuffer(url, onTick) {
   const total = Number(res.headers.get("content-length")) || 0;
   const chunks = []; let loaded = 0;
   const reader = res.body.getReader();
-  for (;;) {
+  for (; ;) {
     const { done, value } = await reader.read();
     if (done) break;
     chunks.push(value); loaded += value.byteLength;
@@ -365,14 +365,16 @@ function toWav(samples) {
 let hist = [];
 try { hist = JSON.parse(localStorage.getItem(HIST_KEY) || "[]"); } catch { hist = []; }
 function saveHist() {
-  try { localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(0, 20).map(
-    ({ text, speed, dur, size }) => ({ text, speed, dur, size })))); } catch {}
+  try {
+    localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(0, 20).map(
+      ({ text, speed, dur, size }) => ({ text, speed, dur, size }))));
+  } catch { }
 }
 
 /* ---------- oynatma kuyrugu + media session ---------- */
 let pieceURLs = [], fullURL = "", fullReady = false, queueDone = false;
 function setSrc(pl, url) {
-  if (pl.src.startsWith("blob:")) { try { URL.revokeObjectURL(pl.src); } catch {} }
+  if (pl.src.startsWith("blob:")) { try { URL.revokeObjectURL(pl.src); } catch { } }
   pl.src = url;
 }
 function revokePlay() {
@@ -391,7 +393,7 @@ function setupMedia(text) {
     const pl = document.querySelector(".pl");
     navigator.mediaSession.setActionHandler("play", () => pl.play());
     navigator.mediaSession.setActionHandler("pause", () => pl.pause());
-  } catch {}
+  } catch { }
 }
 
 /* ---------- gea bileseni ---------- */
@@ -407,7 +409,7 @@ class App extends Component {
         </div>
         <textarea class="txt" placeholder="${t().ph}">${esc(ui.text)}</textarea>
         <div class="ex"><span class="exlab">${t().ex}</span>${EXAMPLES.map((x, i) =>
-          `<button class="ghost exb" data-i="${i}">${t().exN(i)}</button>`).join("")}</div>
+      `<button class="ghost exb" data-i="${i}">${t().exN(i)}</button>`).join("")}</div>
         <div class="row">
           <label class="speed"><span class="spdlab">${t().speed}</span> <input class="spd" type="number" value="1" step="0.25" min="0.25" max="4"></label>
           <button class="say">${t().say}</button>
@@ -497,7 +499,7 @@ class App extends Component {
       },
     };
   }
-  async play() { try { await this.$(".pl").play(); } catch {} }
+  async play() { try { await this.$(".pl").play(); } catch { } }
   onEnded() {
     if (pieceURLs.length) { // siradaki parca
       setSrc(this.$(".pl"), pieceURLs.shift());

@@ -1,4 +1,6 @@
-# ⚡ EMA Lightning Web
+# ⚡ EMA Lightning Web (ONNX)
+
+**Tarayıcıda çevrimdışı Türkçe TTS — Offline Turkish TTS in your browser.**
 
 Türkçe metinden sese (TTS) web uygulaması — **tamamen tarayıcıda çalışır**.
 Sunucu yok, API anahtarı yok, sesiniz cihazınızdan çıkmaz.

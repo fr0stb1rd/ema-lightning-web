@@ -1,73 +1,273 @@
 <!doctype html>
 <html lang="tr">
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="EMA Lightning: tarayıcıda çalışan Türkçe metinden sese (TTS). Sunucu yok, ses cihazdan çıkmaz.">
-<title>EMA Lightning — tarayıcıda Türkçe TTS</title>
-<script>try{var p=JSON.parse(localStorage.getItem("ema-lightning-web-prefs")||"{}");if(p.theme==="light"||p.theme==="dark")document.documentElement.setAttribute("data-theme",p.theme);}catch(e){}</script>
-<style>
-  :root, :root[data-theme="light"]{
-    color-scheme: light;
-    --bg:#ffffff; --fg:#1a1a1a; --muted:#666; --box:#f4f4f5; --line:#e2e2e5;
-    --btn:#1a1a1a; --btn-fg:#fff; --btn-dis:#b9b9bd; --bar:#e7e7ea; --fill:#1a1a1a;
-    --chip:#eef0ff; --chip-fg:#2b3a9e;
-  }
-  :root[data-theme="dark"]{
-    color-scheme: dark;
-    --bg:#141416; --fg:#ececee; --muted:#a1a1aa; --box:#1d1d20; --line:#2c2c31;
-    --btn:#ececee; --btn-fg:#141416; --btn-dis:#4b4b52; --bar:#2a2a30; --fill:#ececee;
-    --chip:#23263d; --chip-fg:#c3cbff;
-  }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme]){
-      color-scheme: dark;
-      --bg:#141416; --fg:#ececee; --muted:#a1a1aa; --box:#1d1d20; --line:#2c2c31;
-      --btn:#ececee; --btn-fg:#141416; --btn-dis:#4b4b52; --bar:#2a2a30; --fill:#ececee;
-      --chip:#23263d; --chip-fg:#c3cbff;
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description"
+    content="EMA Lightning ONNX: tarayıcıda çevrimdışı Türkçe metinden sese (TTS). Offline Turkish TTS in your browser. Sunucu yok, ses cihazdan çıkmaz.">
+  <title>EMA Lightning ONNX — Tarayıcıda Türkçe TTS</title>
+  <script>try { var p = JSON.parse(localStorage.getItem("ema-lightning-web-prefs") || "{}"); if (p.theme === "light" || p.theme === "dark") document.documentElement.setAttribute("data-theme", p.theme); } catch (e) { }</script>
+  <style>
+    :root,
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #ffffff;
+      --fg: #1a1a1a;
+      --muted: #666;
+      --box: #f4f4f5;
+      --line: #e2e2e5;
+      --btn: #1a1a1a;
+      --btn-fg: #fff;
+      --btn-dis: #b9b9bd;
+      --bar: #e7e7ea;
+      --fill: #1a1a1a;
+      --chip: #eef0ff;
+      --chip-fg: #2b3a9e;
     }
-  }
-  *{box-sizing:border-box}
-  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);
-    max-width:640px;margin:0 auto;padding:1.25rem 1rem 3rem;line-height:1.55}
-  h1{font-size:1.35rem;margin:.2rem 0 .3rem}
-  p.sub{color:var(--muted);font-size:.92rem;margin:0 0 1rem}
-  textarea{width:100%;min-height:110px;font:inherit;color:var(--fg);background:var(--box);
-    border:1px solid var(--line);border-radius:8px;padding:.6rem;resize:vertical}
-  .row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.6rem 0}
-  label.speed{font-size:.9rem;color:var(--muted)}
-  input[type=number]{font:inherit;width:4.2rem;color:var(--fg);background:var(--box);
-    border:1px solid var(--line);border-radius:6px;padding:.35rem .4rem}
-  button{font:inherit;padding:.55rem 1.1rem;border:0;border-radius:8px;cursor:pointer;
-    background:var(--btn);color:var(--btn-fg)}
-  button:disabled{background:var(--btn-dis);cursor:default}
-  button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
-  .ex{display:flex;gap:.4rem;flex-wrap:wrap;margin:.2rem 0 .6rem}
-  .ex button{background:var(--chip);color:var(--chip-fg);font-size:.82rem;padding:.35rem .7rem}
-  .bar{height:8px;background:var(--bar);border-radius:99px;overflow:hidden;margin:.4rem 0}
-  .bar>i{display:block;height:100%;width:0;background:var(--fill);border-radius:99px;
-    transition:width .15s linear}
-  .stats{font-size:.83rem;color:var(--muted);min-height:1.4em;font-variant-numeric:tabular-nums}
-  .status{font-size:.9rem;margin:.5rem 0}
-  audio{width:100%;margin-top:.4rem}
-  .hh h2{font-size:1rem;margin:1rem 0 .3rem}
-  .hrow{display:flex;gap:.5rem;align-items:center;padding:.4rem 0;border-top:1px solid var(--line);font-size:.85rem}
-  .ht{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .hm{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
-  .hrow button{font-size:.8rem;padding:.3rem .6rem}
-  .foot{margin-top:1.6rem;font-size:.8rem;color:var(--muted)}
-  .foot a{color:inherit}
-  .set{display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 .8rem}
-  .set label{font-size:.82rem;color:var(--muted);display:flex;gap:.3rem;align-items:center}
-  select{font:inherit;font-size:.85rem;color:var(--fg);background:var(--box);
-    border:1px solid var(--line);border-radius:6px;padding:.3rem .4rem}
-  [hidden]{display:none!important}
-</style>
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #141416;
+      --fg: #ececee;
+      --muted: #a1a1aa;
+      --box: #1d1d20;
+      --line: #2c2c31;
+      --btn: #ececee;
+      --btn-fg: #141416;
+      --btn-dis: #4b4b52;
+      --bar: #2a2a30;
+      --fill: #ececee;
+      --chip: #23263d;
+      --chip-fg: #c3cbff;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme]) {
+        color-scheme: dark;
+        --bg: #141416;
+        --fg: #ececee;
+        --muted: #a1a1aa;
+        --box: #1d1d20;
+        --line: #2c2c31;
+        --btn: #ececee;
+        --btn-fg: #141416;
+        --btn-dis: #4b4b52;
+        --bar: #2a2a30;
+        --fill: #ececee;
+        --chip: #23263d;
+        --chip-fg: #c3cbff;
+      }
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 1.25rem 1rem 3rem;
+      line-height: 1.55
+    }
+
+    h1 {
+      font-size: 1.35rem;
+      margin: .2rem 0 .3rem
+    }
+
+    p.sub {
+      color: var(--muted);
+      font-size: .92rem;
+      margin: 0 0 1rem
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 110px;
+      font: inherit;
+      color: var(--fg);
+      background: var(--box);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: .6rem;
+      resize: vertical
+    }
+
+    .row {
+      display: flex;
+      gap: .5rem;
+      flex-wrap: wrap;
+      align-items: center;
+      margin: .6rem 0
+    }
+
+    label.speed {
+      font-size: .9rem;
+      color: var(--muted)
+    }
+
+    input[type=number] {
+      font: inherit;
+      width: 4.2rem;
+      color: var(--fg);
+      background: var(--box);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: .35rem .4rem
+    }
+
+    button {
+      font: inherit;
+      padding: .55rem 1.1rem;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      background: var(--btn);
+      color: var(--btn-fg)
+    }
+
+    button:disabled {
+      background: var(--btn-dis);
+      cursor: default
+    }
+
+    button.ghost {
+      background: transparent;
+      color: var(--fg);
+      border: 1px solid var(--line)
+    }
+
+    .ex {
+      display: flex;
+      gap: .4rem;
+      flex-wrap: wrap;
+      margin: .2rem 0 .6rem
+    }
+
+    .ex button {
+      background: var(--chip);
+      color: var(--chip-fg);
+      font-size: .82rem;
+      padding: .35rem .7rem
+    }
+
+    .bar {
+      height: 8px;
+      background: var(--bar);
+      border-radius: 99px;
+      overflow: hidden;
+      margin: .4rem 0
+    }
+
+    .bar>i {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: var(--fill);
+      border-radius: 99px;
+      transition: width .15s linear
+    }
+
+    .stats {
+      font-size: .83rem;
+      color: var(--muted);
+      min-height: 1.4em;
+      font-variant-numeric: tabular-nums
+    }
+
+    .status {
+      font-size: .9rem;
+      margin: .5rem 0
+    }
+
+    audio {
+      width: 100%;
+      margin-top: .4rem
+    }
+
+    .hh h2 {
+      font-size: 1rem;
+      margin: 1rem 0 .3rem
+    }
+
+    .hrow {
+      display: flex;
+      gap: .5rem;
+      align-items: center;
+      padding: .4rem 0;
+      border-top: 1px solid var(--line);
+      font-size: .85rem
+    }
+
+    .ht {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .hm {
+      color: var(--muted);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums
+    }
+
+    .hrow button {
+      font-size: .8rem;
+      padding: .3rem .6rem
+    }
+
+    .foot {
+      margin-top: 1.6rem;
+      font-size: .8rem;
+      color: var(--muted)
+    }
+
+    .foot a {
+      color: inherit
+    }
+
+    .set {
+      display: flex;
+      gap: .5rem;
+      flex-wrap: wrap;
+      margin: 0 0 .8rem
+    }
+
+    .set label {
+      font-size: .82rem;
+      color: var(--muted);
+      display: flex;
+      gap: .3rem;
+      align-items: center
+    }
+
+    select {
+      font: inherit;
+      font-size: .85rem;
+      color: var(--fg);
+      background: var(--box);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: .3rem .4rem
+    }
+
+    [hidden] {
+      display: none !important
+    }
+  </style>
 </head>
+
 <body>
-<div id="app"></div>
-<script src="https://cdn.jsdelivr.net/npm/@geajs/core@1.5.1/dist/gea-runtime.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.min.js"></script>
-<script src="app.js"></script>
+  <div id="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@geajs/core@1.5.1/dist/gea-runtime.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.min.js"></script>
+  <script src="app.js"></script>
 </body>
+
 </html>
