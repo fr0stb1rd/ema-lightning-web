@@ -87,7 +87,8 @@ const T = {
        "Evet, repo Apache-2.0; pull request gönderebilirsiniz."],
     ],
     clearCache: "Önbelleği temizle", redownload: "Modeli yeniden indir",
-    cacheCleared: "Önbellek temizlendi.",
+    cacheCleared: "Önbellek temizlendi.", clearHist: "Geçmişi temizle",
+    histCleared: "Geçmiş temizlendi.",
     theme: "Tema:", thSystem: "Sistem", thLight: "Açık", thDark: "Koyu",
     lang: "Dil:", langAuto: "Otomatik",
     disc: `Bu yazılım bilgisayarınıza <b>35,7 MiB</b> model indirir ve cihazınızda çalıştırır. Bu yazılımın hiçbir garantisi yoktur. Bu yazılımı kullanarak <a href="https://github.com/fr0stb1rd/ema-lightning-web/blob/main/LICENSE">LICENSE</a>'ı okumuş ve onaylamış sayılırsınız.`,
@@ -157,7 +158,8 @@ const T = {
        "Yes, the repo is Apache-2.0; pull requests welcome."],
     ],
     clearCache: "Clear cache", redownload: "Re-download model",
-    cacheCleared: "Cache cleared.",
+    cacheCleared: "Cache cleared.", clearHist: "Clear history",
+    histCleared: "History cleared.",
     theme: "Theme:", thSystem: "System", thLight: "Light", thDark: "Dark",
     lang: "Language:", langAuto: "Auto",
     disc: `This software downloads <b>35.7 MiB</b> of models to your computer and runs them on your device. This software comes with no warranty. By using it, you agree that you have read and accepted the <a href="https://github.com/fr0stb1rd/ema-lightning-web/blob/main/LICENSE">LICENSE</a>.`,
@@ -506,19 +508,28 @@ function setupMedia(text) {
 }
 
 /* ---------- onbellek yonetimi ---------- */
+function dropAudio() { // calan + uretilmis sesleri bellekten dusur
+  const pl = document.querySelector(".pl");
+  if (pl) { pl.pause(); setSrc(pl, ""); pl.hidden = true; }
+  revokePlay();
+  if (ui.audioURL) { URL.revokeObjectURL(ui.audioURL); ui.audioURL = ""; }
+}
 async function clearCache() {
   try {
     if ("caches" in self) await caches.delete(CACHE_NAME).catch(() => {});
     try { localStorage.removeItem(TS_KEY); } catch {}
     // Uretilen sesleri de bellekten dusur (liste kalir, tekrar uretilebilir).
-    const pl = document.querySelector(".pl");
-    if (pl) { pl.pause(); setSrc(pl, ""); pl.hidden = true; }
-    revokePlay();
-    if (ui.audioURL) { URL.revokeObjectURL(ui.audioURL); ui.audioURL = ""; }
     hist.forEach((h) => { h.audio = null; });
+    dropAudio();
     saveHist(); ui.histSeq++;
     ui.status = t().cacheCleared;
   } catch (e) { ui.status = t().err(e.message); }
+}
+function clearHist() { // gecmisi komple sil: liste + sesler
+  dropAudio();
+  hist = [];
+  saveHist(); ui.histSeq++;
+  ui.status = t().histCleared;
 }
 async function redownload() {
   if (ui.phase === "busy" || ui.phase === "playing" || ui.phase === "loading") return;
@@ -558,6 +569,7 @@ class App extends Component {
         <div class="row store">
           <button class="ghost sclr">${t().clearCache}</button>
           <button class="ghost sredl">${t().redownload}</button>
+          <button class="ghost shist">${t().clearHist}</button>
         </div>
         <p class="foot"><a href="https://github.com/fr0stb1rd/ema-lightning-web">ema-lightning-web</a> · model: <a href="https://github.com/canberk7/ema-lightning">canberk7/ema-lightning</a> (Apache-2.0) · onnx: <a href="https://huggingface.co/fr0stb1rd/ema-lightning-web-onnx">ema-lightning-web-onnx</a></p>
         <p class="foot disc"></p>
@@ -590,6 +602,7 @@ class App extends Component {
       `<details><summary>${esc(q_)}</summary><p>${esc(a)}</p></details>`).join("");
     q(".sclr").textContent = t().clearCache;
     q(".sredl").textContent = t().redownload;
+    q(".shist").textContent = t().clearHist;
     if (ui.phase === "ready") ui.status = t().ready;
     this.paint(); this.paintHist();
   }
@@ -648,6 +661,7 @@ class App extends Component {
         },
         ".sclr": () => clearCache(),
         ".sredl": () => redownload(),
+        ".shist": () => clearHist(),
       },
       input: { ".txt": (e) => { ui.text = e.target.value; } },
       change: {
