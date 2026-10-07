@@ -82,8 +82,8 @@ Repo → **Settings** → **Pages** → Source: **GitHub Actions**.
 
 | Dosya | Ne işe yarar |
 |---|---|
-| `index.html` | Arayüz |
-| `app.js` | Çıkarım hattı (parçalama + plan + ORT + çalma/kayıt) |
+| `index.html` | Arayüz iskeleti + stil (açık/koyu tema, mobil uyumlu) |
+| `app.js` | Arayüz (`@geajs/core` runtime, TR/EN) + çıkarım hattı |
 | `export_onnx.py` | PyTorch → ONNX dönüştürücü (+ `--check` doğrulaması) |
 | `push_hf.py` | `models/*.onnx` → HuggingFace Hub'a yükleme |
 | `requirements-export.txt` | Dönüştürme bağımlılıkları (sürümleri sabitli, CPU torch) |
