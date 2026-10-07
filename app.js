@@ -418,7 +418,7 @@ class App extends Component {
         <p class="status"></p>
         <audio class="pl" controls hidden></audio>
         <div class="hh" hidden><h2>${t().hist}</h2><div class="hl"></div></div>
-        <p class="foot"><a href="https://github.com/fr0stb1rd/ema-lightning-web">ema-lightning-web</a> · model: <a href="https://github.com/canberk7/ema-lightning">canberk7/ema-lightning</a> (Apache-2.0)</p>
+        <p class="foot"><a href="https://github.com/fr0stb1rd/ema-lightning-web">ema-lightning-web</a> · model: <a href="https://github.com/canberk7/ema-lightning">canberk7/ema-lightning</a> (Apache-2.0) · onnx: <a href="https://huggingface.co/fr0stb1rd/ema-lightning-web-onnx">ema-lightning-web-onnx</a></p>
       </div>`;
   }
   createdHooks() {
