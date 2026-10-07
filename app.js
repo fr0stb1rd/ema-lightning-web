@@ -481,9 +481,10 @@ function saveHist() {
 /* ---------- oynatma kuyrugu + media session ---------- */
 let pieceURLs = [], fullURL = "", fullReady = false, queueDone = false;
 function setSrc(pl, url) {
-  if (pl.src === url || pl.src === "" && !url) return;
+  if (pl.src === url) return;
   if (pl.src.startsWith("blob:")) { try { URL.revokeObjectURL(pl.src); } catch { } }
   if (url) pl.src = url;
+  else { pl.removeAttribute("src"); pl.load(); }
 }
 function revokePlay() {
   for (const u of pieceURLs) URL.revokeObjectURL(u);
@@ -509,6 +510,13 @@ async function clearCache() {
   try {
     if ("caches" in self) await caches.delete(CACHE_NAME).catch(() => {});
     try { localStorage.removeItem(TS_KEY); } catch {}
+    // Uretilen sesleri de bellekten dusur (liste kalir, tekrar uretilebilir).
+    const pl = document.querySelector(".pl");
+    if (pl) { pl.pause(); setSrc(pl, ""); pl.hidden = true; }
+    revokePlay();
+    if (ui.audioURL) { URL.revokeObjectURL(ui.audioURL); ui.audioURL = ""; }
+    hist.forEach((h) => { h.audio = null; });
+    saveHist(); ui.histSeq++;
     ui.status = t().cacheCleared;
   } catch (e) { ui.status = t().err(e.message); }
 }
