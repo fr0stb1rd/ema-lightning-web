@@ -5,6 +5,7 @@
 const ORT_VERSION = "1.30.0"; // index.html'deki CDN script ile AYNI olmali
 const HF_REPO = "fr0stb1rd/ema-lightning-web-onnx";
 const MODEL_BASE = `https://huggingface.co/${HF_REPO}/resolve/main`;
+const MODEL_FILES = ["text_stage.onnx", "sound_stage.onnx", "decoder.onnx"];
 const CACHE_NAME = "ema-lightning-web-v1";
 const HIST_KEY = "ema-lightning-web-hist";
 const RATE = 48000, FPS = 25;
@@ -37,7 +38,9 @@ const T = {
     cached: "önbellekten",
     remain: (s) => `~${s} sn kaldı`, elapsed: (s) => `${s} sn geçti`,
     hist: "Geçmiş", emptyHist: "Henüz üretim yok.",
-    replay: "Oynat",
+    replay: "Oynat", del: "Sil",
+    clearCache: "Önbelleği temizle", redownload: "Modeli yeniden indir",
+    cacheCleared: "Önbellek temizlendi.",
     theme: "Tema:", thSystem: "Sistem", thLight: "Açık", thDark: "Koyu",
     lang: "Dil:", langAuto: "Otomatik",
     disc: `Bu yazılım bilgisayarınıza <b>35,7 MiB</b> model indirir ve cihazınızda çalıştırır. Bu yazılımın hiçbir garantisi yoktur. Bu yazılımı kullanarak <a href="https://github.com/fr0stb1rd/ema-lightning-web/blob/main/LICENSE">LICENSE</a>'ı okumuş ve onaylamış sayılırsınız.`,
@@ -58,7 +61,9 @@ const T = {
     cached: "from cache",
     remain: (s) => `~${s} s left`, elapsed: (s) => `${s} s elapsed`,
     hist: "History", emptyHist: "Nothing yet.",
-    replay: "Play",
+    replay: "Play", del: "Delete",
+    clearCache: "Clear cache", redownload: "Re-download model",
+    cacheCleared: "Cache cleared.",
     theme: "Theme:", thSystem: "System", thLight: "Light", thDark: "Dark",
     lang: "Language:", langAuto: "Auto",
     disc: `This software downloads <b>35.7 MiB</b> of models to your computer and runs them on your device. This software comes with no warranty. By using it, you agree that you have read and accepted the <a href="https://github.com/fr0stb1rd/ema-lightning-web/blob/main/LICENSE">LICENSE</a>.`,
@@ -272,7 +277,7 @@ async function loadModels() {
   // Agir cikarim isini arka plan worker'ina tasi: arayuz donmaz.
   // (Pages COOP/COEP gondermedigi icin tek thread; proxy sadece yeri degistirir.)
   ort.env.wasm.proxy = true;
-  const files = ["text_stage.onnx", "sound_stage.onnx", "decoder.onnx"];
+  const files = MODEL_FILES;
   const t0 = performance.now();
   const state = Object.fromEntries(files.map((f) => [f, { loaded: 0, total: 0 }]));
   let last = 0, anyCached = false;
@@ -400,7 +405,26 @@ function setupMedia(text) {
   } catch { }
 }
 
-/* ---------- gea bileseni ---------- */
+/* ---------- onbellek yonetimi ---------- */
+async function clearCache() {
+  try {
+    if ("caches" in self) await caches.delete(CACHE_NAME).catch(() => {});
+    try { localStorage.removeItem(TS_KEY); } catch {}
+    ui.status = t().cacheCleared;
+  } catch (e) { ui.status = t().err(e.message); }
+}
+async function redownload() {
+  if (ui.phase === "busy" || ui.phase === "playing" || ui.phase === "loading") return;
+  try {
+    if ("caches" in self) {
+      const jar = await caches.open(CACHE_NAME).catch(() => null);
+      if (jar) for (const f of MODEL_FILES) await jar.delete(`${MODEL_BASE}/${f}`).catch(() => {});
+    }
+    sessText = sessSound = sessDec = null;
+    await loadModels();
+  } catch (e) { ui.phase = "error"; ui.status = t().err(e.message); }
+}
+
 class App extends Component {
   template() {
     return `
@@ -424,6 +448,10 @@ class App extends Component {
         <p class="status"></p>
         <audio class="pl" controls hidden></audio>
         <div class="hh" hidden><h2>${t().hist}</h2><div class="hl"></div></div>
+        <div class="row store">
+          <button class="ghost sclr">${t().clearCache}</button>
+          <button class="ghost sredl">${t().redownload}</button>
+        </div>
         <p class="foot"><a href="https://github.com/fr0stb1rd/ema-lightning-web">ema-lightning-web</a> · model: <a href="https://github.com/canberk7/ema-lightning">canberk7/ema-lightning</a> (Apache-2.0) · onnx: <a href="https://huggingface.co/fr0stb1rd/ema-lightning-web-onnx">ema-lightning-web-onnx</a></p>
         <p class="foot disc"></p>
       </div>`;
@@ -449,6 +477,8 @@ class App extends Component {
     fillSelects(this.$("div"));
     q(".hh h2").textContent = t().hist;
     q(".disc").innerHTML = t().disc;
+    q(".sclr").textContent = t().clearCache;
+    q(".sredl").textContent = t().redownload;
     if (ui.phase === "ready") ui.status = t().ready;
     this.paint(); this.paintHist();
   }
@@ -480,6 +510,7 @@ class App extends Component {
         <span class="hm">${h.dur} sn • ${h.size}</span>
         <button class="ghost hplay">${t().replay}</button>
         ${h.audio ? `<button class="ghost hdl">${t().dl}</button>` : ""}
+        <button class="ghost hdel" title="${t().del}">×</button>
       </div>`).join("");
   }
   get events() {
@@ -496,6 +527,12 @@ class App extends Component {
         },
         ".hplay": (e) => this.onHistPlay(Number(e.target.closest(".hrow").dataset.i)),
         ".hdl": (e) => this.onHistDl(Number(e.target.closest(".hrow").dataset.i)),
+        ".hdel": (e) => {
+          const i = Number(e.target.closest(".hrow").dataset.i);
+          if (hist[i]) { hist.splice(i, 1); saveHist(); ui.histSeq++; }
+        },
+        ".sclr": () => clearCache(),
+        ".sredl": () => redownload(),
       },
       input: { ".txt": (e) => { ui.text = e.target.value; } },
       change: {
