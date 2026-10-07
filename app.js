@@ -5,6 +5,8 @@
 const ORT_VERSION = "1.30.0"; // index.html'deki CDN script ile AYNI olmali
 const HF_REPO = "fr0stb1rd/ema-lightning-web-onnx";
 const MODEL_BASE = `https://huggingface.co/${HF_REPO}/resolve/main`;
+const CACHE_NAME = "ema-lightning-web-v1";
+const HIST_KEY = "ema-lightning-web-hist";
 const RATE = 48000, FPS = 25;
 const FIRST_WINDOW = 25, WINDOW = 100, CONTEXT = 8;
 const MAX_WORD_FRAMES = 250, MAX_FRAMES = 3000, MAX_LETTERS = 250;
@@ -18,12 +20,17 @@ const T = {
     ph: "Okunacak Türkçe metni yazın…",
     ex: "Örnekler:", exN: (i) => `Örnek ${i + 1}`,
     speed: "Hız:", say: "Sesi Üret", busy: "Üretiliyor…",
+    playing: "Çalınıyor (kalan üretiliyor…)",
     loading: "Modeller indiriliyor (ilk sefer, ~36 MB)…",
     ready: "Hazır.",
     done: (d) => `Tamamlandı (${d} sn ses).`,
     err: (m) => `Hata: ${m}`,
+    empty: "önce metin yazın",
     dl: "İndir", bald: ".wav indir",
+    cached: "önbellekten",
     remain: (s) => `~${s} sn kaldı`, elapsed: (s) => `${s} sn geçti`,
+    hist: "Geçmiş", emptyHist: "Henüz üretim yok.",
+    replay: "Oynat",
   },
   en: {
     title: "⚡ EMA Lightning (in-browser)",
@@ -31,12 +38,17 @@ const T = {
     ph: "Type Turkish text to speak…",
     ex: "Examples:", exN: (i) => `Example ${i + 1}`,
     speed: "Speed:", say: "Speak", busy: "Working…",
+    playing: "Playing (generating rest…)",
     loading: "Downloading models (first run, ~36 MB)…",
     ready: "Ready.",
     done: (d) => `Done (${d} s of audio).`,
     err: (m) => `Error: ${m}`,
+    empty: "type some text first",
     dl: "Download", bald: ".wav download",
+    cached: "from cache",
     remain: (s) => `~${s} s left`, elapsed: (s) => `${s} s elapsed`,
+    hist: "History", emptyHist: "Nothing yet.",
+    replay: "Play",
   },
 }[LANG];
 
@@ -50,11 +62,11 @@ const EXAMPLES = [
 /* ---------- gea store ---------- */
 const { Store, Component, GEA_OBSERVER_REMOVERS } = gea;
 class UI extends Store {
-  phase = "idle";      // idle|loading|ready|busy|done|error
+  phase = "idle";      // idle|loading|ready|busy|playing|done|error
   text = EXAMPLES[0];
   speed = 1;
   pct = 0; stats = ""; status = ""; dlSeq = 0;
-  audioURL = ""; audioSize = "";
+  audioURL = ""; audioSize = ""; histSeq = 0;
 }
 const ui = new UI();
 
@@ -62,6 +74,7 @@ const ui = new UI();
 const $ = (id) => document.getElementById(id);
 const fmtMB = (b) => b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
 const fmtS = (s) => s < 60 ? `${Math.round(s)}` : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 
 async function loadJSON(path) {
   const r = await fetch(path);
@@ -69,13 +82,25 @@ async function loadJSON(path) {
   return r.json();
 }
 
-// Ilerlemeli indirme: yuzde + toplam + hiz + gecen/kalan sure icin baytlari sayar.
+// Cache-first indirme (Transformers.js kalibi): once Cache Storage, yoksa ag + put.
+async function cachedResponse(url) {
+  const jar = ("caches" in self) ? await caches.open(CACHE_NAME).catch(() => null) : null;
+  if (jar) {
+    const hit = await jar.match(url).catch(() => null);
+    if (hit) return { res: hit, fromCache: true, jar };
+  }
+  const net = await fetch(url);
+  if (!net.ok) throw new Error(`${url.split("/").pop()} (HTTP ${net.status})`);
+  if (jar && (net.type === "basic" || net.type === "cors"))
+    jar.put(url, net.clone()).catch(() => {});
+  return { res: net, fromCache: false, jar };
+}
+
 async function fetchBuffer(url, onTick) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`${url.split("/").pop()} (HTTP ${r.status})`);
-  const total = Number(r.headers.get("content-length")) || 0;
+  const { res, fromCache } = await cachedResponse(url);
+  const total = Number(res.headers.get("content-length")) || 0;
   const chunks = []; let loaded = 0;
-  const reader = r.body.getReader();
+  const reader = res.body.getReader();
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -84,7 +109,7 @@ async function fetchBuffer(url, onTick) {
   }
   const buf = new Uint8Array(loaded);
   let o = 0; for (const c of chunks) { buf.set(c, o); o += c.byteLength; }
-  return { buf, total: total || loaded };
+  return { buf, fromCache };
 }
 
 /* ---------- TTS cekirdegi (orijinal hattin portu) ---------- */
@@ -177,6 +202,11 @@ function windows(frames, first = WINDOW) {
   while (s < frames) { const e = Math.min(frames, s + (s === 0 ? first : WINDOW)); spans.push([s, e]); s = e; }
   return spans;
 }
+const concat = (parts) => {
+  const out = new Float32Array(parts.reduce((a, x) => a + x.length, 0));
+  let o = 0; for (const c of parts) { out.set(c, o); o += c.length; }
+  return out;
+};
 
 async function loadModels() {
   ui.phase = "loading"; ui.status = T.loading; ui.pct = 0; ui.stats = "";
@@ -184,27 +214,29 @@ async function loadModels() {
   const files = ["text_stage.onnx", "sound_stage.onnx", "decoder.onnx"];
   const t0 = performance.now();
   const state = Object.fromEntries(files.map((f) => [f, { loaded: 0, total: 0 }]));
-  let last = 0;
+  let last = 0, anyCached = false;
   const tick = () => {
     const now = performance.now();
-    if (now - last < 120) return; // ~8fps yeterli, DOM'u yormayalim
+    if (now - last < 120) return;
     last = now;
     const loaded = files.reduce((a, f) => a + state[f].loaded, 0);
     const total = files.reduce((a, f) => a + state[f].total, 0);
     const el = (now - t0) / 1000, spd = loaded / Math.max(el, 0.01);
     ui.pct = total ? Math.min(100, (100 * loaded) / total) : 0;
     const left = spd > 0 && total ? Math.max(0, (total - loaded) / spd) : 0;
-    ui.stats = total
+    ui.stats = (total
       ? `${ui.pct.toFixed(0)}% • ${fmtMB(loaded)} / ${fmtMB(total)} • ${fmtMB(spd)}/sn • ${T.elapsed(fmtS(el))} • ${T.remain(fmtS(left))}`
-      : `${fmtMB(loaded)} • ${fmtMB(spd)}/sn • ${T.elapsed(fmtS(el))}`;
+      : `${fmtMB(loaded)} • ${fmtMB(spd)}/sn • ${T.elapsed(fmtS(el))}`)
+      + (anyCached ? ` • ${T.cached}` : "");
     ui.dlSeq++;
   };
   const opt = { executionProviders: ["webgpu", "wasm"] };
   const v = await loadJSON("vocab.json");
   VOCAB = v.vocab; STOI = v.stoi; TIMES = v.times; LATENT = v.latent_dim;
   const jobs = files.map(async (f) => {
-    const { buf } = await fetchBuffer(`${MODEL_BASE}/${f}`,
+    const { buf, fromCache } = await fetchBuffer(`${MODEL_BASE}/${f}`,
       (loaded, total) => { state[f] = { loaded, total }; tick(); });
+    if (fromCache) anyCached = true;
     state[f].loaded = state[f].total || state[f].loaded; tick();
     return ort.InferenceSession.create(buf, opt);
   });
@@ -213,9 +245,9 @@ async function loadModels() {
   ui.phase = "ready"; ui.status = T.ready;
 }
 
-async function synthesize(text, speed, seed) {
+// Parca parca uretir (pipelining icin async generator): her yield bir parcadir.
+async function* synthPieces(text, speed, seed) {
   const spoken = alphabet(text);
-  const out = [];
   let seedI = 0;
   for (const [part, pause] of chunk(spoken, speed)) {
     const p = piece(part);
@@ -224,19 +256,19 @@ async function synthesize(text, speed, seed) {
     const d = t.h.dims[2];
     const h = Array.from(t.h.data), dur = Array.from(t.dur.data).map((x) => x / speed);
     const { fw, fp, frames } = plan(p, dur);
-    const Tframes = frames;
     const rand = mulberry32((seed * 1000003 + seedI++) >>> 0);
     const noise = [];
-    for (let k = 0; k < TIMES.length; k++) noise.push(...randn(Tframes, LATENT, rand));
+    for (let k = 0; k < TIMES.length; k++) noise.push(...randn(frames, LATENT, rand));
     const lat = await sessSound.run({
       h: F32(h, [1, L, d]), dur: F32(dur, [1, L]),
       mask: Bool(new Array(L).fill(1), [1, L]),
       cw: Big(p.cw, [1, L]), wstart: Big(p.wstart, [1, L]),
-      fw: Big(fw, [1, Tframes]), fp: F32(fp, [1, Tframes]),
-      fmask: Bool(new Array(Tframes).fill(1), [1, Tframes]),
-      noise: F32(noise, [1, TIMES.length, Tframes, LATENT]),
+      fw: Big(fw, [1, frames]), fp: F32(fp, [1, frames]),
+      fmask: Bool(new Array(frames).fill(1), [1, frames]),
+      noise: F32(noise, [1, TIMES.length, frames, LATENT]),
     });
     const latents = Array.from(lat.latents.data);
+    const waves = [];
     for (const [ws, we] of windows(frames, FIRST_WINDOW)) {
       const a = Math.max(0, ws - CONTEXT), b = Math.min(frames, we + CONTEXT);
       const n = b - a, z = new Float32Array(LATENT * n);
@@ -244,13 +276,11 @@ async function synthesize(text, speed, seed) {
         for (let c = 0; c < LATENT; c++) z[c * n + f] = latents[(a + f) * LATENT + c];
       const dec = await sessDec.run({ z: new ort.Tensor("float32", z, [1, LATENT, n]) });
       const hop = dec.audio.data.length / n;
-      out.push(dec.audio.data.slice((ws - a) * hop, (we - a) * hop));
+      waves.push(dec.audio.data.slice((ws - a) * hop, (we - a) * hop));
     }
-    if (pause > 0) out.push(new Float32Array(Math.round(pause * RATE)));
+    if (pause > 0) waves.push(new Float32Array(Math.round(pause * RATE)));
+    yield concat(waves);
   }
-  const audio = new Float32Array(out.reduce((a, x) => a + x.length, 0));
-  let o = 0; for (const c of out) { audio.set(c, o); o += c.length; }
-  return audio;
 }
 
 function toWav(samples) {
@@ -266,6 +296,39 @@ function toWav(samples) {
   return new Blob([b], { type: "audio/wav" });
 }
 
+/* ---------- gecmis (oturum ici ses + localStorage meta) ---------- */
+let hist = [];
+try { hist = JSON.parse(localStorage.getItem(HIST_KEY) || "[]"); } catch { hist = []; }
+function saveHist() {
+  try { localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(0, 20).map(
+    ({ text, speed, dur, size }) => ({ text, speed, dur, size })))); } catch {}
+}
+
+/* ---------- oynatma kuyrugu + media session ---------- */
+let pieceURLs = [], fullURL = "", fullReady = false, queueDone = false;
+function setSrc(pl, url) {
+  if (pl.src.startsWith("blob:")) { try { URL.revokeObjectURL(pl.src); } catch {} }
+  pl.src = url;
+}
+function revokePlay() {
+  for (const u of pieceURLs) URL.revokeObjectURL(u);
+  pieceURLs = []; queueDone = false; fullReady = false;
+  if (fullURL) { URL.revokeObjectURL(fullURL); fullURL = ""; }
+}
+function setupMedia(text) {
+  if (!("mediaSession" in navigator)) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: text.slice(0, 80) || "EMA Lightning",
+      artist: "EMA Lightning",
+      album: LANG === "tr" ? "Tarayıcıda Türkçe TTS" : "In-browser Turkish TTS",
+    });
+    const pl = document.querySelector(".pl");
+    navigator.mediaSession.setActionHandler("play", () => pl.play());
+    navigator.mediaSession.setActionHandler("pause", () => pl.pause());
+  } catch {}
+}
+
 /* ---------- gea bileseni ---------- */
 class App extends Component {
   template() {
@@ -273,7 +336,7 @@ class App extends Component {
       <div id="${this.id}">
         <h1>${T.title}</h1>
         <p class="sub">${T.sub}</p>
-        <textarea class="txt" placeholder="${T.ph}">${ui.text}</textarea>
+        <textarea class="txt" placeholder="${T.ph}">${esc(ui.text)}</textarea>
         <div class="ex"><span>${T.ex}</span>${EXAMPLES.map((x, i) =>
           `<button class="ghost exb" data-i="${i}">${T.exN(i)}</button>`).join("")}</div>
         <div class="row">
@@ -285,6 +348,7 @@ class App extends Component {
         <div class="stats"></div>
         <p class="status"></p>
         <audio class="pl" controls hidden></audio>
+        <div class="hh" hidden><h2>${T.hist}</h2><div class="hl"></div></div>
         <p class="foot"><a href="https://github.com/fr0stb1rd/ema-lightning-web">ema-lightning-web</a> · model: <a href="https://github.com/canberk7/ema-lightning">canberk7/ema-lightning</a> (Apache-2.0)</p>
       </div>`;
   }
@@ -293,10 +357,12 @@ class App extends Component {
     R.push(ui.observe("phase", () => this.paint()));
     R.push(ui.observe("dlSeq", () => this.paintDl()));
     R.push(ui.observe("audioURL", () => this.paintAudio()));
-    this.paint();
+    R.push(ui.observe("histSeq", () => this.paintHist()));
+    this.$(".pl").addEventListener("ended", () => this.onEnded());
+    this.paint(); this.paintHist();
   }
   paint() {
-    const loading = ui.phase === "loading", busy = ui.phase === "busy";
+    const loading = ui.phase === "loading", busy = ui.phase === "busy" || ui.phase === "playing";
     this.$(".say").disabled = loading || busy;
     this.$(".say").textContent = busy ? T.busy : T.say;
     this.$(".bar").hidden = !(loading || ui.phase === "ready");
@@ -309,12 +375,21 @@ class App extends Component {
   }
   paintAudio() {
     const has = !!ui.audioURL;
-    const pl = this.$(".pl"), dl = this.$(".dl");
-    pl.hidden = !has; dl.hidden = !has; dl.disabled = !has;
-    if (has) {
-      if (pl.src !== ui.audioURL) { pl.src = ui.audioURL; pl.play().catch(() => {}); }
-      dl.textContent = `${T.dl} (${ui.audioSize})`;
-    }
+    const dl = this.$(".dl");
+    dl.hidden = !has; dl.disabled = !has;
+    if (has) dl.textContent = `${T.dl} (${ui.audioSize})`;
+  }
+  paintHist() {
+    const box = this.$(".hh"), list = this.$(".hl");
+    box.hidden = hist.length === 0;
+    if (!hist.length) { list.innerHTML = ""; return; }
+    list.innerHTML = hist.map((h, i) => `
+      <div class="hrow" data-i="${i}">
+        <span class="ht">${esc(h.text.slice(0, 60))}${h.text.length > 60 ? "…" : ""}</span>
+        <span class="hm">${h.dur} sn • ${h.size}</span>
+        <button class="ghost hplay">${T.replay}</button>
+        ${h.audio ? `<button class="ghost hdl">${T.dl}</button>` : ""}
+      </div>`).join("");
   }
   get events() {
     return {
@@ -328,28 +403,92 @@ class App extends Component {
           const a = document.createElement("a");
           a.href = ui.audioURL; a.download = "ema.wav"; a.click();
         },
+        ".hplay": (e) => this.onHistPlay(Number(e.target.closest(".hrow").dataset.i)),
+        ".hdl": (e) => this.onHistDl(Number(e.target.closest(".hrow").dataset.i)),
       },
       input: { ".txt": (e) => { ui.text = e.target.value; } },
       change: { ".spd": (e) => { ui.speed = parseFloat(e.target.value) || 1; } },
     };
   }
+  async play() { try { await this.$(".pl").play(); } catch {} }
+  onEnded() {
+    if (pieceURLs.length) { // siradaki parca
+      setSrc(this.$(".pl"), pieceURLs.shift());
+      this.play();
+    } else {
+      queueDone = true;
+      if (fullReady && fullURL) { setSrc(this.$(".pl"), fullURL); } // bastan dinlemek icin hazir
+    }
+  }
   async onSay() {
-    if (ui.phase === "busy" || ui.phase === "loading") return;
+    if (ui.phase === "busy" || ui.phase === "playing" || ui.phase === "loading") return;
+    if (!ui.text.trim()) { ui.phase = "error"; ui.status = T.err(T.empty); return; }
     try {
       if (!sessText) await loadModels();
+      revokePlay();
+      if (ui.audioURL) { URL.revokeObjectURL(ui.audioURL); ui.audioURL = ""; }
       ui.phase = "busy"; ui.status = T.busy;
       const t0 = performance.now();
-      const audio = await synthesize(ui.text, ui.speed, 0);
-      if (ui.audioURL) URL.revokeObjectURL(ui.audioURL);
+      const text = ui.text, speed = ui.speed;
+      const gen = synthPieces(text, speed, 0);
+      const parts = [];
+      const first = await gen.next();
+      if (first.done) throw new Error(T.empty);
+      parts.push(first.value);
+      // Ilk parca hemen calsin, kalan arka planda uretilsin (pipelining).
+      const pl = this.$(".pl");
+      pl.hidden = false;
+      pieceURLs = [URL.createObjectURL(toWav(first.value))];
+      setSrc(pl, pieceURLs.shift());
+      setupMedia(text);
+      await this.play();
+      ui.phase = "playing"; ui.status = T.playing;
+      for await (const p of gen) {
+        parts.push(p);
+        pieceURLs.push(URL.createObjectURL(toWav(p)));
+      }
+      const audio = concat(parts);
       const blob = toWav(audio);
+      fullURL = URL.createObjectURL(blob);
+      fullReady = true;
       ui.audioURL = URL.createObjectURL(blob);
       ui.audioSize = fmtMB(blob.size);
+      const dur = (audio.length / RATE).toFixed(1);
+      hist.unshift({ text, speed, dur, size: ui.audioSize, audio });
+      hist = hist.slice(0, 20);
+      saveHist(); ui.histSeq++;
       ui.phase = "done";
-      ui.status = T.done((audio.length / RATE).toFixed(1)) +
-        ` (${((performance.now() - t0) / 1000).toFixed(1)} sn)`;
+      ui.status = T.done(dur) + ` (${((performance.now() - t0) / 1000).toFixed(1)} sn)`;
+      if (queueDone) setSrc(pl, fullURL);
     } catch (e) {
       ui.phase = "error"; ui.status = T.err(e.message);
     }
+  }
+  async onHistPlay(i) {
+    const h = hist[i];
+    if (!h) return;
+    if (h.audio) {
+      const pl = this.$(".pl");
+      pl.hidden = false;
+      if (ui.audioURL) URL.revokeObjectURL(ui.audioURL);
+      ui.audioURL = URL.createObjectURL(toWav(h.audio));
+      ui.audioSize = h.size;
+      setSrc(pl, ui.audioURL); setupMedia(h.text);
+      await this.play();
+      ui.phase = "done"; ui.status = T.done(h.dur);
+    } else {
+      ui.text = h.text; this.$(".txt").value = h.text;
+      ui.speed = h.speed; this.$(".spd").value = h.speed;
+      this.onSay(); // ses yoksa (sayfa yenilenmis) bastan uret
+    }
+  }
+  onHistDl(i) {
+    const h = hist[i];
+    if (!h || !h.audio) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(toWav(h.audio));
+    a.download = "ema.wav"; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
 }
 
