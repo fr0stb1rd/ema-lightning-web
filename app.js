@@ -267,6 +267,9 @@ const concat = (parts) => {
 async function loadModels() {
   ui.phase = "loading"; ui.status = t().loading; ui.pct = 0; ui.stats = "";
   ort.env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
+  // Agir cikarim isini arka plan worker'ina tasi: arayuz donmaz.
+  // (Pages COOP/COEP gondermedigi icin tek thread; proxy sadece yeri degistirir.)
+  ort.env.wasm.proxy = true;
   const files = ["text_stage.onnx", "sound_stage.onnx", "decoder.onnx"];
   const t0 = performance.now();
   const state = Object.fromEntries(files.map((f) => [f, { loaded: 0, total: 0 }]));
@@ -289,14 +292,20 @@ async function loadModels() {
   const opt = { executionProviders: ["webgpu", "wasm"] };
   const v = await loadJSON("vocab.json");
   VOCAB = v.vocab; STOI = v.stoi; TIMES = v.times; LATENT = v.latent_dim;
-  const jobs = files.map(async (f) => {
+  const makeSessions = () => files.map(async (f) => {
     const { buf, fromCache } = await fetchBuffer(`${MODEL_BASE}/${f}`,
       (loaded, total) => { state[f] = { loaded, total }; tick(); });
     if (fromCache) anyCached = true;
     state[f].loaded = state[f].total || state[f].loaded; tick();
     return ort.InferenceSession.create(buf, opt);
   });
-  [sessText, sessSound, sessDec] = await Promise.all(jobs);
+  try {
+    [sessText, sessSound, sessDec] = await Promise.all(makeSessions());
+  } catch (e) {
+    // Worker kurulamazsa ana threade dus.
+    ort.env.wasm.proxy = false;
+    [sessText, sessSound, sessDec] = await Promise.all(makeSessions());
+  }
   ui.pct = 100; ui.dlSeq++;
   ui.phase = "ready"; ui.status = t().ready;
 }
