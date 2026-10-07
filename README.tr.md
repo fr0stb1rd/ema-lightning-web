@@ -164,4 +164,4 @@ commitleri `workflow_run` tetikleyicisiyle yayınlanır.)
 - Model ve ağırlıklar: [Canberk Aslan (canberk7/ema-lightning)](https://github.com/canberk7/ema-lightning), Apache-2.0 (ticari kullanım dahil).
 - Metin normalleştirme (orijinal): [Erdem Tuna (normalizer-tr)](https://github.com/erdemtuna/normalizer-tr).
 - Tarayıcı reaktivitesi: [Gea (`@geajs/core`)](https://github.com/dashersw/gea).
-- Bu repodaki kod: Apache-2.0.
+- Bu repodaki kod: Apache-2.0 (© 2026 fr0stb1rd).

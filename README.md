@@ -165,4 +165,4 @@ job's commits are deployed via the `workflow_run` trigger.)
 - Model and weights: [Canberk Aslan (canberk7/ema-lightning)](https://github.com/canberk7/ema-lightning), Apache-2.0 (commercial use included).
 - Text normalization (original): [Erdem Tuna (normalizer-tr)](https://github.com/erdemtuna/normalizer-tr).
 - Browser reactivity: [Gea (`@geajs/core`)](https://github.com/dashersw/gea).
-- Code in this repo: Apache-2.0.
+- Code in this repo: Apache-2.0 (© 2026 fr0stb1rd).
