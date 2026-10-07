@@ -26,7 +26,7 @@ const T = {
     title: "⚡ EMA Lightning ONNX (Tarayıcıda)",
     sub: "Tarayıcıda çevrimdışı Türkçe TTS. Sunucu yok — her şey cihazınızda olur. Sayıları yazıyla yazın (örn. “bin iki yüz elli”).",
     ph: "Okunacak Türkçe metni yazın…",
-    ex: "Örnekler:", exN: (i) => `Örnek ${i + 1}`,
+    ex: "Örnekler:", exT: ["Kısa", "Orta", "Uzun", "Paragraf", "Hikâye"],
     speed: "Hız:", say: "Sesi Üret", busy: "Üretiliyor…",
     playing: "Çalınıyor (kalan üretiliyor…)",
     loading: "Modeller indiriliyor (ilk sefer, ~36 MB)…",
@@ -103,7 +103,7 @@ const T = {
     title: "⚡ EMA Lightning ONNX (in-browser)",
     sub: "Offline Turkish TTS in your browser. No server — everything runs on your device. Write numbers out in Turkish words (e.g. “bin iki yüz elli”).",
     ph: "Type Turkish text to speak…",
-    ex: "Examples:", exN: (i) => `Example ${i + 1}`,
+    ex: "Examples:", exT: ["Short", "Medium", "Long", "Paragraph", "Story"],
     speed: "Speed:", say: "Speak", busy: "Working…",
     playing: "Playing (generating rest…)",
     loading: "Downloading models (first run, ~36 MB)…",
@@ -180,17 +180,123 @@ const T = {
 const t = () => T[effLang()];
 
 const EXAMPLES = [
-  "Merhaba, size nasıl yardımcı olabilirim?",
-  "Siparişiniz yola çıktı, yarın sabah kapınızda olacak.",
-  "Beş kilogram un, iki litre süt ve bir düzine yumurta aldım.",
-  "On beş Ekim Çarşamba günü saat onda toplantımız var.",
+[ // kisa (3-7 kelime)
+"Merhaba, size nasıl yardımcı olabilirim?",
+"Günaydın, hayırlı sabahlar dilerim.",
+"Siparişiniz yola çıktı bile.",
+"Hava bugün gerçekten çok güzel.",
+"Çayınız hazır, afiyet olsun.",
+"Toplantı yarına ertelendi maalesef.",
+"Kargonuz teslim edildi efendim.",
+"İyi akşamlar, hoş geldiniz.",
+"Yarın görüşmek üzere, hoşça kalın.",
+"Randevunuz onaylandı, teşekkürler.",
+"Ödeme başarıyla alındı, sağ olun.",
+"Kapı açık, buyurun içeri gelin.",
+"Yemek hazır, sofraya buyurun.",
+"Telefonunuz sessizde kalmış galiba.",
+"Anahtarları masada unutmuşsunuz.",
+"Yağmur başladı, şemsiyeni al.",
+"Kedi bahçede uyuyor sessizce.",
+"Fırından taze ekmek aldım.",
+"Bugün kendimi harika hissediyorum.",
+"Trafik yoğun, biraz gecikeceğim.",
+],
+[ // orta (9-13 kelime)
+"Siparişiniz yola çıktı, yarın sabah kapınızda olacak.",
+"Beş kilogram un, iki litre süt ve bir düzine yumurta aldım.",
+"On beş Ekim Çarşamba günü saat onda toplantımız var.",
+"Sabah erken kalktım, kahvaltı edip sahilde yürüyüş yaptım.",
+"Çocuklar parkta oynarken ben bankta kitap okudum.",
+"Yeni komşularımız dün taşındı, akşam çaya davet ettiler.",
+"Marketten meyve sebze alırken eski bir arkadaşıma rastladım.",
+"Öğretmen ödevleri kontrol etti ve herkese tek tek açıkladı.",
+"Doktor randevum öğleden sonraydı, biraz beklemek zorunda kaldım.",
+"Akşam yemeğinde mercimek çorbası ve zeytinyağlı fasulye vardı.",
+"Tren tam zamanında kalktı, cam kenarında rahat bir yolculuktu.",
+"Kütüphaneden üç kitap ödünç aldım, ikisini bitirdim bile.",
+"Bahçedeki güller açmış, mis gibi kokuyor her yer.",
+"Elektrikler kesilince mum ışığında sohbet ettik ailecek.",
+"Cumartesi günü piknik için erkenden yola çıkacağız inşallah.",
+"Telefonun şarjı bitmek üzere, priz nerede acaba?",
+"Yaşlı adam her sabah aynı saatte fırına uğruyor.",
+"Kış gelmeden kombi bakımını yaptırmak lazım bence.",
+"Deniz kenarında çay içmek gibisi yok şu mevsimde.",
+"Çamaşırları astım, hava parçalı bulutlu ama kurur herhalde.",
+],
+[ // uzun (15-22 kelime)
+"Dün akşam annemlerle görüntülü konuştuk, herkesin keyfi yerindeydi, bayramda köye gitmeyi planlıyoruz hep birlikte.",
+"Sabah işe giderken otobüsü kaçırdım, sonraki durağa kadar yürüdüm, neyse ki toplantıya son anda yetiştim.",
+"Hafta sonu evde büyük temizlik yaptık, camları sildik, halıları yıkamaya verdik, akşam yorgunluktan erkenden uyuduk.",
+"Çocuğun okul kaydını yaptırmak için sabah erkenden gittik, sıra bekledik, evrakları teslim edip rahat bir nefes aldık.",
+"Yaz tatilinde Ege kıyılarını gezdik, küçük koylarda yüzdük, akşamları sahil kasabalarında balık yedik, unutulmazdı.",
+"Fırında pişen ekmeğin kokusu sokağa yayılmıştı, dayanamayıp iki tane aldım, biri eve varmadan bitti zaten.",
+"Yeni işe başladığım ilk hafta her şey yabancı geliyordu, şimdi ekip arkadaşlarımla öğle yemeklerini birlikte yiyoruz.",
+"Yağmurlu havalarda kitap okumayı seviyorum, pencere kenarına oturup çayımı yudumlarken saatlerin nasıl geçtiğini anlamıyorum.",
+"Dedem bahçede domates biber yetiştirir, her yaz bize kasa kasa gönderir, tadı markettekilere hiç benzemez doğrusu.",
+"Araba bakıma gidecek, lastikler değişecek, sigorta yenilenecek; bu ay masraflar üst üste geldi maalesef.",
+"Komşunun kedisi her sabah kapımıza geliyor, süt veriyoruz, biraz sevilip sonra çatıya çıkıp güneşleniyor.",
+"Üniversite sınavına hazırlanan kardeşim gece gündüz çalışıyor, deneme sonuçları giderek yükseliyor, umutluyuz.",
+"Pazar kahvaltısı bizim evde gelenektir, herkes sofrada olur, menemen zeytin peynir eksik olmaz, çay demlikte tükenir.",
+"Şehir dışından misafirlerimiz geldi, tarihi yerleri gezdirdik, akşam evde mantı açtık, çok eğlenceli bir gündü.",
+"Telefonumun ekranı çatladı, servise verdim, bir hafta telefonsuz kalacağım, bakalım nasıl geçecek bu süre.",
+"Kışın soba başında kestane kebap yapardık, dedem hikayeler anlatırdı, o günleri özlüyorum bazen.",
+"Mahallede yeni bir park açıldı, çocuk oyun alanları ve yürüyüş yolları var, akşamları kalabalık oluyor.",
+"Diş randevum vardı, biraz gergindim ama doktor çok nazikti, işlem sandığımdan çabuk bitti.",
+"Yarın sabah erkenden yola çıkıyoruz, bavullar hazır, kahvaltıyı yolda yaparız diye düşündük.",
+"Akşam haberlerinde hava durumunu izledim, hafta ortası yağış geliyor, şemsiyeleri hazırlamak lazım.",
+],
+[ // daha uzun (25-38 kelime)
+"Sabah alarm çalmadan uyandım, pencereyi açtım, mis gibi temiz hava girdi içeri; kahvemi yapıp balkonda oturdum, kuş sesleri eşliğinde günü planladım, yapılacaklar listesini gözden geçirdim.",
+"Geçen yaz Kapadokya'ya gittik, sabah gün doğumunda balonları izledik, yeraltı şehirlerini gezdik, testi kebabı yedik; rehberimiz bölgenin tarihini öyle güzel anlattı ki herkes hayran kaldı.",
+"Ofiste yeni bir proje başladı, ekip beş kişi, ilk toplantıda görev dağılımı yaptık; benim payıma raporlama düştü, iki hafta sürem var, şimdiden araştırmalara başladım bile.",
+"Annemin doğum günü için sürpriz parti hazırladık, kardeşim pastayı aldı, ben süsleri astım, misafirler erkenden geldi; annem kapıdan girince gözleri doldu, çok duygusal bir andı.",
+"Kışın Uludağ'a kayak yapmaya gittik, ilk gün acemi pistinde düştüm kalktım, ikinci gün toparlandım; akşam otelde sıcak çikolata içip günün yorgunluğunu attık, harika bir tatildi.",
+"Eski fotoğraflara bakarken çocukluğuma gittim, mahalle arkadaşlarımla sokakta oynadığımız günler geldi aklıma; şimdi herkes farklı şehirlerde, bayramlarda anca görüşebiliyoruz.",
+"Evde küçük bir kütüphane kurdum, rafları tek tek dizdim, romanları yazara göre, tarih kitaplarını döneme göre ayırdım; akşamları bir saat okuma saati ilan ettim, huzur veriyor.",
+"Pazar günü semt pazarına gittim, domates biber patlıcan aldım, köylü teyzeden taze yumurta seçtim; pazarlık yaparken esnafla sohbet etmek de işin en keyifli yanı doğrusu.",
+"Yeni bir hobi edindim, ahşap boyama; önce küçük kutularla başladım, şimdi sehpa boyuyorum; ellerim boya içinde kalıyor ama ortaya çıkan işi görmek paha biçilemez.",
+"Kardeşimle uzun bir yolculuğa çıktık, arabada eski şarkılar dinledik, mola yerlerinde çay içtik, yol kenarındaki köylerden gözleme aldık; varıştan çok yolun kendisi güzeldi.",
+"Sabah sporu yapmaya karar verdim, ilk gün parkta iki tur koştum, bacaklarım ağrıdı ama vazgeçmedim; bir ay sonra nefesim açıldı, şimdi her sabah koşmadan güne başlayamıyorum.",
+"Komşularla apartman toplantısı yaptık, aidatları konuştuk, bahçe düzenlemesine karar verdik, asansör bakımı için teklif alacağız; herkes söz aldı, demokratik bir toplantıydı.",
+"Düğün hazırlıkları tam gaz sürüyor, davetiyeler basıldı, salon tutuldu, gelinlik provası yapıldı; bir yandan heyecan bir yandan stres, günler su gibi akıyor.",
+"Köydeki evin çatısı akıtıyordu, usta çağırdık, kiremitler yenilendi, oluklar temizlendi; yağmur mevsimi gelmeden yetişti, içimiz rahat etti.",
+"Çocuğuma bisiklet sürmeyi öğrettim, önce destek tekerlekleriyle başladı, sonra cesaretini topladı; ilk düşüşünde ağladı ama pes etmedi, şimdi parklarda tur atıyor.",
+"Akşam yemeğine misafir gelecek, menüde mercimek çorbası, tavuk sote ve sütlaç var; sofrayı kurdum, salatayı hazırladım, saatine kadar her şey hazır olacak.",
+"Kitap kulübünde bu ay tarihi bir roman okuduk, toplantıda karakterleri tartıştık, yazarın dili üzerine konuştuk; gelecek ay bilim kurgu seçtik, merakla bekliyorum.",
+"Bahçeye sebze ektim, fideleri tek tek diktim, her sabah suluyorum; ilk filizler göründü, hasat zamanı komşularla paylaşacağım inşallah.",
+"Emeklilik planları yapıyoruz eşimle, sahil kasabasında küçük bir ev hayalimiz var; bahçeli, denize yakın, torunların koşturacağı bir yer olsun istiyoruz.",
+"Okulun kermesi için anneler kolları sıvadı, börekler açıldı, kekler pişirildi; gelir okul kütüphanesine bağışlanacak, katılım da oldukça yüksekti.",
+],
+[ // cok uzun (45-70 kelime, cok cumleli)
+"Sabahın erken saatlerinde liman henüz uyanmamıştı. Balıkçılar ağlarını sessizce topluyor, martılar ise teknelerin etrafında dönerek şanslarını deniyordu. Ben sahilde yürürken tuzlu havayı içime çektim, dalgaların kıyıya vuruşunu dinledim. O an bütün haftanın yorgunluğu üzerimden kalktı sanki. Eve dönerken fırından sıcak simit aldım, kahvaltı sofrasında herkese günün ilk gülümsemesini verdim.",
+"Yıllar önce dedemle yaylaya çıkardık her yaz. Sabah serinliğinde yola düşer, öğlene doğru çadırları kurardık. Dedem odun toplar, ben su taşırdım; akşam ateş başında anlattığı hikayeler hiç bitmezdi. Yıldızların altında uyur, sabah kuş sesleriyle uyanırdık. Şimdi o günleri torunlarıma anlatıyorum, onlar da aynı heyecanla dinliyor. Bazı anılar hiç eskimiyor, nesilden nesile taşınıyor.",
+"Şehrin kalabalığından kaçıp köye yerleştik geçen yıl. İlk aylar zordu; internet kesiliyor, market uzaktı, komşular yabancıydı. Ama zamanla her şey yoluna girdi. Artık sabahları tavuk sesleriyle uyanıyor, bahçeden topladıklarımızla kahvaltı ediyoruz. Çocuklar sokakta özgürce oynuyor, akşamları komşularla çay içiyoruz. Şehirde unuttuğumuz huzuru burada yeniden bulduk, geri dönmeyi hiç düşünmüyoruz.",
+"Üniversite yıllarımda harçlığımı çıkarmak için kafede çalışırdım. Sabah ders, öğleden sonra vardiya, gece ders çalışma; yorucu ama öğretici günlerdi. Patronum sabırlıydı, müşterilerle nasıl konuşulacağını ondan öğrendim. Bir gün ünlü bir yazar geldi kafeye, saatlerce sohbet ettik, kitabını imzaladı. O kitap hâlâ kitaplığımın en değerli köşesinde durur, her baktığımda o günleri hatırlarım.",
+"Kışın ilk karı yağdığında çocuklar gibi sevinirim hâlâ. Pencereye koşar, sokağın beyaza bürünüşünü izlerim. Sonra kalın giyinip dışarı çıkarım; karın çatırtısını dinleyerek yürür, eldivenlerimle kardan adam yaparım. Akşam eve dönünce salep yaparım, battaniyeye sarılıp film izlerim. Kar tatili haberleri gelirse sevinirim, tatil olmasa da karın keyfini çıkarmayı bilirim artık.",
+"Mahallemizde her yıl bahar şenliği düzenlenir. Esnaf tezgah açar, çocuklar yüz boyatır, gençler müzik yapar. Geçen yıl ben de gözleme tezgahının başına geçtim; hamur açmak sandığımdan zordu, kollarım ağrıdı ama çok eğlendim. Akşam havai fişeklerle kapanış yapıldı, herkes alkışladı. Bu tür etkinlikler komşuluğu güçlendiriyor, herkese tavsiye ederim katılmasını.",
+"Emekli olduktan sonra gezmeye başladım eşimle. Önce yurt içini gezdik; Kapadokya, Pamukkale, Efes derken liste uzadı. Sonra yurt dışına açıldık; Balkanlar, İtalya, İspanya derken pasaportumuz damgalarla doldu. Her geziden magnet getiririz, buzdolabımız dünya haritası gibi oldu. Şimdi torunlarla geziyoruz, onların gözünden dünyayı yeniden keşfediyorum, yaşlılık hiç de sıkıcı değilmiş.",
+"Çocukluğumda sokak oyunları oynardık; saklambaç, körebe, yakar top derken akşam ezanına kadar eve girmezdik. Annem pencereden seslenirdi, bir türlü kopamazdık oyundan. Şimdiki çocuklar ekran başında oynuyor, sokaklar sessiz. Geçen gün torunumu parka götürdüm, salıncakta sallanırken gözlerinin içi gülüyordu. Teknoloji ne kadar gelişirse gelişsin, açık havanın yerini hiçbir şey tutamaz bence.",
+"Yeni evimize taşındığımız ilk gece heyecandan uyuyamadık. Kutular her yerdeydi, yatak odasını zor bulduk. Sabah komşu kapıyı çaldı, hoş geldin böreği getirmiş; o an evimizde hissettik kendimizi. Günlerce yerleşmeyle uğraştık, her kutu ayrı bir hatırayı ortaya çıkardı. Şimdi her köşesi bize ait, duvarlarda fotoğraflarımız var. Ev dediğin dört duvar değil, içine sığdırdığın anılarmış meğer.",
+"Ramazan ayında mahallemiz bir başka güzel olur. İftar sofraları kurulur, komşular birbirine yemek gönderir, çocuklar pide kuyruğunda bekler. Teravih çıkışı çay ocakları dolar, sohbetler sahura kadar sürer. Bayram sabahı herkes en güzel kıyafetlerini giyer, büyüklerin elleri öpülür, şekerler toplanır. Bu ayın bereketi bir başka; birlik beraberlik duygusu her eve yayılır, dargınlar barışır.",
+"Deniz kenarında büyüdüm ben; yaz demek deniz, kum, güneş demekti bizim için. Sabah erkenden plaja gider, akşam güneş batana kadar sudan çıkmazdık. Annem seslenirdi yemek hazır diye, ıslak mayoyla sofraya otururduk. Tuzlu suyun yapışkanlığı, güneş yanığının acısı, dondurmacının zili; hepsi çocukluğumun sesi. Şimdi kendi çocuklarıma aynı yazları yaşatmaya çalışıyorum, deniz sevgisi miras kalıyor.",
+"Okulun ilk günü hiç unutmam; yeni çanta, yeni defterler, heyecandan çarpan kalp. Annem kapıya kadar getirdi, öğretmenim elimi tuttu, sınıf capcanlıydı. İlk hafta isimleri karıştırdım, sonra herkesle arkadaş oldum. Yıllar geçti, o sınıftaki dostlukların çoğu hâlâ sürüyor. Eğitim hayatım boyunca birçok okul değiştirdim ama ilk günün heyecanı hep aynı kaldı, her başlangıç bir umut taşıyor.",
+"Kış hazırlıkları sonbaharda başlar bizim evde; turşular kurulur, konserveler yapılır, tarhana serilir. Annem her işin ustasıdır, tarifleri göz kararı verir, tadı da hep tutar. Ben yardım ederim, kavanoz taşırım, etiket yapıştırırım. Kiler doldukça içimiz rahatlar, kış boyu hazır yemek keyfi süreriz. Marketten almakla ev yapımı bir olur mu hiç; emek giren her şey daha lezzetli olur.",
+"Hayatımın en güzel sabahlarından biriydi; kızımın doğduğu gün. Sabaha karşı hastaneye gittik, saatlerce bekledik, sonra o ilk ağlama sesi duyuldu. Hemşire kucağıma verdi, minicik elleri parmağıma sarıldı. O an dünyadaki bütün dertler silindi, sadece o minik nefes vardı. Şimdi kocaman oldu, okula gidiyor ama o sabahı dün gibi hatırlıyorum, ebeveynlik böyle bir şey işte.",
+"Ninemin evi köyün girişindeydi; avluda tavuklar, bahçede erik ağaçları vardı. Yazları oraya giderdik, sabah süt sağmaya kalkardık, öğlen yayık ayranı içerdik. Ninem ekmek yapardı tandırda, kokusu bütün köyü sarardı. Akşamları masal anlatırdı, cinler periler derken uykuya dalardık. O ev satıldı yıllar önce ama kokusu, sesi, sıcaklığı hâlâ burnumda; çocukluğum orada kaldı sanki.",
+"Gençken İstanbul'a ilk gelişimde gözlerime inanamamıştım; kalabalık, trafik, vapurlar, martılar derken başım dönmüştü. Köprüden geçerken iki kıtayı birden gördüm, tarih her köşedeydi. Yıllar içinde şehre alıştım, semtleri öğrendim, favori mekanlarım oldu. Şimdi buranın kaosunu bile seviyorum; vapurda çay içmek, Galata'dan gün batımını izlemek gibisi yok. İstanbul insanı yorar ama bırakmaz, bağımlılık yapar.",
+"Depremden sonra mahallemiz kenetlendi; çadırlar kuruldu, yemekler paylaşıldı, nöbetleşe bekledik. Kimse kimseyi tanımıyordu önceden, şimdi herkes akraba gibi. Zor günler insanları birbirine bağlar derlerdi, yaşayarak öğrendik. Evler onarıldı, hayat normale döndü ama o dayanışma ruhu kaldı. Artık her yıl o günü anıyoruz, kaybettiklerimizi rahmetle, kalanları şükranla hatırlıyoruz.",
+"Torun sahibi olunca hayatım değişti; zamanımın çoğu onunla geçiyor artık. Parkta salıncak sallıyorum, masal okuyorum, birlikte resim yapıyoruz. Onun kahkahası bütün yorgunluğumu alıyor, minik elleriyle yüzüme dokunuşu dünyaya bedel. Gençliğimde kariyer peşinde koşmuşum, şimdi anlıyorum ki asıl zenginlik bu anlarmış. Herkese tavsiyem: sevdiklerinizle vakit geçirmeyi ertelemeyin, zaman çok hızlı geçiyor.",
+"Ege'de küçük bir sahil kasabasına yerleştik emekli olunca; sabah balıkçılarla denize açılıyor, öğlen kahvede okey oynuyoruz. Akşamları sahilde yürüyüş yapıyor, gün batımını izliyoruz. Komşular sıcakkanlı, herkes birbirini tanıyor, kapılar kilitlenmiyor bile. Kışın sakin, yazın cıvıl cıvıl; iki mevsimi de ayrı güzel. Şehirdeki stresi burada unuttuk, tansiyonum bile düzeldi doktorun dediğine göre.",
+"Çocukken dedemin radyosundan dinlerdim türküleri; sesi cızırtılıydı ama tadı başkaydı. Akşam olunca aile toplanır, dedem türkü söyler, biz dinlerdik. O türküler kulağıma işlemiş, hâlâ mırıldanırım bazen. Şimdi dijital platformlarda her şey var ama o radyonun sıcaklığı yok. Teknoloji ilerliyor, ses kalitesi artıyor ama bazı duygular analog kalıyor; nostalji de böyle bir şey işte, geçmişi özlüyoruz hep.",
+],
 ];
 
 /* ---------- gea store ---------- */
 const { Store, Component, GEA_OBSERVER_REMOVERS } = gea;
 class UI extends Store {
   phase = "idle";      // idle|loading|ready|busy|playing|done|error
-  text = EXAMPLES[0];
+  text = EXAMPLES[0][0];
   speed = 1;
   pct = 0; stats = ""; status = ""; dlSeq = 0;
   audioURL = ""; audioSize = ""; histSeq = 0;
@@ -567,7 +673,7 @@ class App extends Component {
         </div>
         <textarea class="txt" placeholder="${t().ph}">${esc(ui.text)}</textarea>
         <div class="ex"><span class="exlab">${t().ex}</span>${EXAMPLES.map((x, i) =>
-      `<button class="ghost exb" data-i="${i}">${t().exN(i)}</button>`).join("")}</div>
+      `<button class="ghost exb" data-i="${i}">${t().exT[i]}</button>`).join("")}</div>
         <div class="row">
           <label class="speed"><span class="spdlab">${t().speed}</span> <input class="spd" type="number" value="1" step="0.25" min="0.25" max="4"></label>
           <button class="say">${t().say}</button>
@@ -604,7 +710,7 @@ class App extends Component {
     q(".sub").textContent = t().sub;
     q(".txt").placeholder = t().ph;
     q(".exlab").textContent = t().ex;
-    this.$$(".exb").forEach((b, i) => { b.textContent = t().exN(i); });
+    this.$$(".exb").forEach((b, i) => { b.textContent = t().exT[i]; });
     q(".spdlab").textContent = t().speed;
     fillSelects(this.$("div"));
     q(".hh h2").textContent = t().hist;
@@ -658,8 +764,14 @@ class App extends Component {
           this.$$("details").forEach((x) => { if (x !== d && x.open) x.open = false; });
         },
         ".exb": (e) => {
-          ui.text = EXAMPLES[Number(e.target.dataset.i)];
-          this.$(".txt").value = ui.text;
+          const tier = EXAMPLES[Number(e.target.dataset.i)] || EXAMPLES[0];
+          let pick = tier[Math.floor(Math.random() * tier.length)];
+          if (tier.length > 1) {
+            for (let k = 0; k < 5 && pick === ui.text; k++)
+              pick = tier[Math.floor(Math.random() * tier.length)];
+          }
+          ui.text = pick;
+          this.$(".txt").value = pick;
         },
         ".dl": () => {
           const a = document.createElement("a");
