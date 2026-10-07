@@ -407,7 +407,12 @@ async function loadModels() {
     ort.env.wasm.proxy = false;
     [sessText, sessSound, sessDec] = await Promise.all(makeSessions());
   }
-  ui.pct = 100; ui.dlSeq++;
+  ui.pct = 100;
+  { // son tick throttle'a takilmis olabilir; kapanis satirini burada yaz
+    const totalAll = files.reduce((a, f) => a + (state[f].total || state[f].loaded), 0);
+    ui.stats = `100% • ${fmtMB(totalAll)} / ${fmtMB(totalAll)}` + (anyCached ? ` • ${t().cached}` : "");
+  }
+  ui.dlSeq++;
   ui.phase = "ready"; ui.status = t().ready;
 }
 
