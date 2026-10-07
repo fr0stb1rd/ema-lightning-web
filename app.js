@@ -160,13 +160,19 @@ function chunk(text, speed) {
   return pieces;
 }
 function alphabet(text) { // SADELESTIRILMIS: normalizer-tr yok, sayilari yaziyle yazin
+  // Orijinal frontend.py ile ayni: Turkce harfler oldugu gibi kalir (NFKD'ye sokulmaz),
+  // diger harflerin aksanlari soyulur, vocab'da olmayan her sey bosluk olur.
+  const TURKISH = new Set([..."çğıöşü"]);
   const typo = { "’": "'", "‘": "'", "“": '"', "”": '"', "–": "-", "—": "-", "…": "..." };
   text = text.replace(/[’‘“”–—…]/g, (c) => typo[c] || c)
     .replaceAll("İ", "i").replaceAll("I", "ı").toLowerCase();
   const vs = new Set(VOCAB);
   let out = "";
-  for (const ch of text.normalize("NFKD").replace(/[\u0300-\u036f]/g, ""))
-    out += vs.has(ch) ? ch : " ";
+  for (const ch of text) {
+    if (TURKISH.has(ch)) { out += vs.has(ch) ? ch : " "; continue; }
+    const base = ch.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+    out += (base && [...base].every((c) => vs.has(c))) ? base : " ";
+  }
   return out.replace(/\s+/g, " ").trim();
 }
 function piece(text) {
