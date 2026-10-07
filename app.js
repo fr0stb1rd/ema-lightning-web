@@ -39,6 +39,15 @@ const T = {
     remain: (s) => `~${s} sn kaldı`, elapsed: (s) => `${s} sn geçti`,
     hist: "Geçmiş", emptyHist: "Henüz üretim yok.",
     replay: "Oynat", del: "Sil",
+    faq: "Sık sorulanlar",
+    faqs: [
+      ["İnternet bağlantısı gerekli mi?",
+       "Modeller ilk açılışta bir kez iner (35,7 MiB); sonrası çevrimdışı çalışır."],
+      ["Sesim veya yazdıklarım bir yere gönderiliyor mu?",
+       "Hayır. Üretim dahil her şey tarayıcınızda olur; sunucu yok."],
+      ["Hangi model kullanılıyor?",
+       "EMA Lightning (8,6M parametre, Apache-2.0): ONNX'e çevrilip WebGPU/WASM ile çalıştırılıyor."],
+    ],
     clearCache: "Önbelleği temizle", redownload: "Modeli yeniden indir",
     cacheCleared: "Önbellek temizlendi.",
     theme: "Tema:", thSystem: "Sistem", thLight: "Açık", thDark: "Koyu",
@@ -62,6 +71,15 @@ const T = {
     remain: (s) => `~${s} s left`, elapsed: (s) => `${s} s elapsed`,
     hist: "History", emptyHist: "Nothing yet.",
     replay: "Play", del: "Delete",
+    faq: "FAQ",
+    faqs: [
+      ["Do I need an internet connection?",
+       "Models download once on first launch (35.7 MiB); afterwards it works offline."],
+      ["Is my voice or text sent anywhere?",
+       "No. Everything, including synthesis, runs in your browser; there is no server."],
+      ["Which model is used?",
+       "EMA Lightning (8.6M parameters, Apache-2.0): converted to ONNX and run with WebGPU/WASM."],
+    ],
     clearCache: "Clear cache", redownload: "Re-download model",
     cacheCleared: "Cache cleared.",
     theme: "Theme:", thSystem: "System", thLight: "Light", thDark: "Dark",
@@ -454,6 +472,7 @@ class App extends Component {
         </div>
         <p class="foot"><a href="https://github.com/fr0stb1rd/ema-lightning-web">ema-lightning-web</a> · model: <a href="https://github.com/canberk7/ema-lightning">canberk7/ema-lightning</a> (Apache-2.0) · onnx: <a href="https://huggingface.co/fr0stb1rd/ema-lightning-web-onnx">ema-lightning-web-onnx</a></p>
         <p class="foot disc"></p>
+        <div class="faq"><h2></h2><div class="fl"></div></div>
       </div>`;
   }
   createdHooks() {
@@ -477,6 +496,9 @@ class App extends Component {
     fillSelects(this.$("div"));
     q(".hh h2").textContent = t().hist;
     q(".disc").innerHTML = t().disc;
+    q(".faq h2").textContent = t().faq;
+    q(".faq .fl").innerHTML = t().faqs.map(([q_, a]) =>
+      `<details><summary>${esc(q_)}</summary><p>${esc(a)}</p></details>`).join("");
     q(".sclr").textContent = t().clearCache;
     q(".sredl").textContent = t().redownload;
     if (ui.phase === "ready") ui.status = t().ready;

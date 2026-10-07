@@ -6,6 +6,38 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description"
     content="EMA Lightning ONNX: tarayıcıda çevrimdışı Türkçe metinden sese (TTS). Offline Turkish TTS in your browser. Sunucu yok, ses cihazdan çıkmaz.">
+  <link rel="canonical" href="https://fr0stb1rd.github.io/ema-lightning-web/">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141416" media="(prefers-color-scheme: dark)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="EMA Lightning Web">
+  <meta property="og:url" content="https://fr0stb1rd.github.io/ema-lightning-web/">
+  <meta property="og:title" content="EMA Lightning ONNX — Tarayıcıda Çevrimdışı Türkçe TTS">
+  <meta property="og:description" content="Offline Turkish TTS in your browser. Sunucu yok — her şey cihazınızda olur. No server — everything runs on your device.">
+  <meta property="og:locale" content="tr_TR">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="EMA Lightning ONNX — Tarayıcıda Çevrimdışı Türkçe TTS">
+  <meta name="twitter:description" content="Offline Turkish TTS in your browser. No server — everything runs on your device.">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "EMA Lightning Web (ONNX)",
+    "alternateName": "Tarayıcıda Çevrimdışı Türkçe TTS",
+    "url": "https://fr0stb1rd.github.io/ema-lightning-web/",
+    "inLanguage": ["tr", "en"],
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "Web browser",
+    "offers": { "@type": "Offer", "price": "0" },
+    "license": "https://github.com/fr0stb1rd/ema-lightning-web/blob/main/LICENSE",
+    "sameAs": [
+      "https://github.com/fr0stb1rd/ema-lightning-web",
+      "https://huggingface.co/fr0stb1rd/ema-lightning-web-onnx"
+    ]
+  }
+  </script>
   <title>EMA Lightning ONNX — Tarayıcıda Türkçe TTS</title>
   <script>try { var p = JSON.parse(localStorage.getItem("ema-lightning-web-prefs") || "{}"); if (p.theme === "light" || p.theme === "dark") document.documentElement.setAttribute("data-theme", p.theme); } catch (e) { }</script>
   <style>
@@ -261,6 +293,26 @@
       display: none !important
     }
 
+    .faq h2 {
+      font-size: 1rem;
+      margin: 1.2rem 0 .3rem
+    }
+
+    .faq details {
+      border-top: 1px solid var(--line);
+      padding: .4rem 0;
+      font-size: .88rem
+    }
+
+    .faq summary {
+      cursor: pointer
+    }
+
+    .faq details p {
+      margin: .3rem 0 0;
+      color: var(--muted)
+    }
+
     .store {
       margin-top: 1rem
     }
@@ -274,6 +326,7 @@
 
 <body>
   <div id="app"></div>
+  <noscript><p>Bu uygulama için JavaScript gerekli. / This app requires JavaScript.</p></noscript>
   <script src="https://cdn.jsdelivr.net/npm/@geajs/core@1.5.1/dist/gea-runtime.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.min.js"></script>
   <script src="app.js"></script>

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://fr0stb1rd.github.io/ema-lightning-web/sitemap.xml
