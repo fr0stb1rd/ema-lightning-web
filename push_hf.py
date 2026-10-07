@@ -61,16 +61,15 @@ tags:
 
 # EMA Lightning Web — ONNX weights
 
-[canberk7/ema-lightning](https://github.com/canberk7/ema-lightning) modelinin
-tarayicida calismasi icin ONNX'e cevrilmis agirliklari
-([fr0stb1rd/ema-lightning-web](https://github.com/fr0stb1rd/ema-lightning-web) tarafindan uretildi).
+ONNX-converted weights of [canberk7/ema-lightning](https://github.com/canberk7/ema-lightning)
+for in-browser inference (produced by [fr0stb1rd/ema-lightning-web](https://github.com/fr0stb1rd/ema-lightning-web)).
 
-- `text_stage.onnx`: metin → gizli temsil + sureler
-- `sound_stage.onnx`: 4 adimli DiT → 25 Hz gizli temsil
-- `decoder.onnx`: HiFi-GAN → 48 kHz ses
+- `text_stage.onnx`: text → hidden states + durations
+- `sound_stage.onnx`: 4-step DiT → 25 Hz latents
+- `decoder.onnx`: HiFi-GAN → 48 kHz audio
 
 Demo: https://fr0stb1rd.github.io/ema-lightning-web/
-Lisans: Apache-2.0 (orijinal model ile ayni).
+License: Apache-2.0 (same as the original model).
 """
 
 

@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - export_onnx.py
+      - push_hf.py
       - requirements-export.txt
       - .github/workflows/export-onnx.yml
 permissions:

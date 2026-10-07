@@ -363,6 +363,7 @@ function toWav(samples) {
 
 /* ---------- gecmis (oturum ici ses + localStorage meta) ---------- */
 let hist = [];
+let lastGenText = ""; // indir tusunun adlandirmasi icin uretilen metin
 try { hist = JSON.parse(localStorage.getItem(HIST_KEY) || "[]"); } catch { hist = []; }
 function saveHist() {
   try {
@@ -374,8 +375,9 @@ function saveHist() {
 /* ---------- oynatma kuyrugu + media session ---------- */
 let pieceURLs = [], fullURL = "", fullReady = false, queueDone = false;
 function setSrc(pl, url) {
+  if (pl.src === url || pl.src === "" && !url) return;
   if (pl.src.startsWith("blob:")) { try { URL.revokeObjectURL(pl.src); } catch { } }
-  pl.src = url;
+  if (url) pl.src = url;
 }
 function revokePlay() {
   for (const u of pieceURLs) URL.revokeObjectURL(u);
@@ -486,7 +488,7 @@ class App extends Component {
         },
         ".dl": () => {
           const a = document.createElement("a");
-          a.href = ui.audioURL; a.download = dlName(ui.text); a.click();
+          a.href = ui.audioURL; a.download = dlName(lastGenText || ui.text); a.click();
         },
         ".hplay": (e) => this.onHistPlay(Number(e.target.closest(".hrow").dataset.i)),
         ".hdl": (e) => this.onHistDl(Number(e.target.closest(".hrow").dataset.i)),
@@ -543,8 +545,10 @@ class App extends Component {
       ui.audioURL = URL.createObjectURL(blob);
       ui.audioSize = fmtMB(blob.size);
       const dur = (audio.length / RATE).toFixed(1);
+      lastGenText = text;
       hist.unshift({ text, speed, dur, size: ui.audioSize, audio });
       hist = hist.slice(0, 20);
+      hist.forEach((h, i) => { if (i > 4) h.audio = null; }); // bellek: sesi sadece son 5 kayitta tut
       saveHist(); ui.histSeq++;
       ui.phase = "done";
       ui.status = t().done(dur) + ` (${((performance.now() - t0) / 1000).toFixed(1)} sn)`;
@@ -554,6 +558,7 @@ class App extends Component {
     }
   }
   async onHistPlay(i) {
+    if (ui.phase === "busy" || ui.phase === "playing" || ui.phase === "loading") return;
     const h = hist[i];
     if (!h) return;
     if (h.audio) {
