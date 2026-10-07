@@ -11,8 +11,15 @@ const RATE = 48000, FPS = 25;
 const FIRST_WINDOW = 25, WINDOW = 100, CONTEXT = 8;
 const MAX_WORD_FRAMES = 250, MAX_FRAMES = 3000, MAX_LETTERS = 250;
 
-/* ---------- i18n: arayuz dili tarayicidan, okunacak metin hep Turkce ---------- */
-const LANG = (navigator.language || "tr").toLowerCase().startsWith("tr") ? "tr" : "en";
+/* ---------- i18n: varsayilan tarayicidan, kullanici degistirebilir (kalici) ---------- */
+const BROWSER_TR = (navigator.language || "tr").toLowerCase().startsWith("tr");
+const PREFS_KEY = "ema-lightning-web-prefs";
+let prefs = { theme: "system", lang: "auto" };
+try { Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || "{}")); } catch {}
+if (!["system", "light", "dark"].includes(prefs.theme)) prefs.theme = "system";
+if (!["auto", "tr", "en"].includes(prefs.lang)) prefs.lang = "auto";
+const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch {} };
+const effLang = () => prefs.lang === "auto" ? (BROWSER_TR ? "tr" : "en") : prefs.lang;
 const T = {
   tr: {
     title: "⚡ EMA Lightning (tarayıcıda)",
@@ -31,6 +38,8 @@ const T = {
     remain: (s) => `~${s} sn kaldı`, elapsed: (s) => `${s} sn geçti`,
     hist: "Geçmiş", emptyHist: "Henüz üretim yok.",
     replay: "Oynat",
+    theme: "Tema:", thSystem: "Sistem", thLight: "Açık", thDark: "Koyu",
+    lang: "Dil:", langAuto: "Otomatik",
   },
   en: {
     title: "⚡ EMA Lightning (in-browser)",
@@ -49,8 +58,11 @@ const T = {
     remain: (s) => `~${s} s left`, elapsed: (s) => `${s} s elapsed`,
     hist: "History", emptyHist: "Nothing yet.",
     replay: "Play",
+    theme: "Theme:", thSystem: "System", thLight: "Light", thDark: "Dark",
+    lang: "Language:", langAuto: "Auto",
   },
-}[LANG];
+};
+const t = () => T[effLang()];
 
 const EXAMPLES = [
   "Merhaba, size nasıl yardımcı olabilirim?",
@@ -75,6 +87,19 @@ const $ = (id) => document.getElementById(id);
 const fmtMB = (b) => b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
 const fmtS = (s) => s < 60 ? `${Math.round(s)}` : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+/* ---------- kalici ayarlar: tema + dil ---------- */
+function applyTheme() {
+  if (prefs.theme === "system") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", prefs.theme);
+}
+function fillSelects(root) {
+  const th = root.querySelector(".theme"), ls = root.querySelector(".langsel");
+  th.innerHTML = [["system", t().thSystem], ["light", t().thLight], ["dark", t().thDark]]
+    .map(([v, l]) => `<option value="${v}"${prefs.theme === v ? " selected" : ""}>${l}</option>`).join("");
+  ls.innerHTML = [["auto", t().langAuto], ["tr", "Türkçe"], ["en", "English"]]
+    .map(([v, l]) => `<option value="${v}"${prefs.lang === v ? " selected" : ""}>${l}</option>`).join("");
+}
 
 async function loadJSON(path) {
   const r = await fetch(path);
@@ -215,7 +240,7 @@ const concat = (parts) => {
 };
 
 async function loadModels() {
-  ui.phase = "loading"; ui.status = T.loading; ui.pct = 0; ui.stats = "";
+  ui.phase = "loading"; ui.status = t().loading; ui.pct = 0; ui.stats = "";
   ort.env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
   const files = ["text_stage.onnx", "sound_stage.onnx", "decoder.onnx"];
   const t0 = performance.now();
@@ -231,9 +256,9 @@ async function loadModels() {
     ui.pct = total ? Math.min(100, (100 * loaded) / total) : 0;
     const left = spd > 0 && total ? Math.max(0, (total - loaded) / spd) : 0;
     ui.stats = (total
-      ? `${ui.pct.toFixed(0)}% • ${fmtMB(loaded)} / ${fmtMB(total)} • ${fmtMB(spd)}/sn • ${T.elapsed(fmtS(el))} • ${T.remain(fmtS(left))}`
-      : `${fmtMB(loaded)} • ${fmtMB(spd)}/sn • ${T.elapsed(fmtS(el))}`)
-      + (anyCached ? ` • ${T.cached}` : "");
+      ? `${ui.pct.toFixed(0)}% • ${fmtMB(loaded)} / ${fmtMB(total)} • ${fmtMB(spd)}/sn • ${t().elapsed(fmtS(el))} • ${t().remain(fmtS(left))}`
+      : `${fmtMB(loaded)} • ${fmtMB(spd)}/sn • ${t().elapsed(fmtS(el))}`)
+      + (anyCached ? ` • ${t().cached}` : "");
     ui.dlSeq++;
   };
   const opt = { executionProviders: ["webgpu", "wasm"] };
@@ -248,7 +273,7 @@ async function loadModels() {
   });
   [sessText, sessSound, sessDec] = await Promise.all(jobs);
   ui.pct = 100; ui.dlSeq++;
-  ui.phase = "ready"; ui.status = T.ready;
+  ui.phase = "ready"; ui.status = t().ready;
 }
 
 // Parca parca uretir (pipelining icin async generator): her yield bir parcadir.
@@ -327,7 +352,7 @@ function setupMedia(text) {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: text.slice(0, 80) || "EMA Lightning",
       artist: "EMA Lightning",
-      album: LANG === "tr" ? "Tarayıcıda Türkçe TTS" : "In-browser Turkish TTS",
+      album: effLang() === "tr" ? "Tarayıcıda Türkçe TTS" : "In-browser Turkish TTS",
     });
     const pl = document.querySelector(".pl");
     navigator.mediaSession.setActionHandler("play", () => pl.play());
@@ -340,21 +365,25 @@ class App extends Component {
   template() {
     return `
       <div id="${this.id}">
-        <h1>${T.title}</h1>
-        <p class="sub">${T.sub}</p>
-        <textarea class="txt" placeholder="${T.ph}">${esc(ui.text)}</textarea>
-        <div class="ex"><span>${T.ex}</span>${EXAMPLES.map((x, i) =>
-          `<button class="ghost exb" data-i="${i}">${T.exN(i)}</button>`).join("")}</div>
+        <h1>${t().title}</h1>
+        <p class="sub">${t().sub}</p>
+        <div class="set">
+          <label>${t().theme} <select class="theme"></select></label>
+          <label>${t().lang} <select class="langsel"></select></label>
+        </div>
+        <textarea class="txt" placeholder="${t().ph}">${esc(ui.text)}</textarea>
+        <div class="ex"><span class="exlab">${t().ex}</span>${EXAMPLES.map((x, i) =>
+          `<button class="ghost exb" data-i="${i}">${t().exN(i)}</button>`).join("")}</div>
         <div class="row">
-          <label class="speed">${T.speed} <input class="spd" type="number" value="1" step="0.25" min="0.25" max="4"></label>
-          <button class="say">${T.say}</button>
-          <button class="ghost dl" disabled hidden>${T.dl}</button>
+          <label class="speed"><span class="spdlab">${t().speed}</span> <input class="spd" type="number" value="1" step="0.25" min="0.25" max="4"></label>
+          <button class="say">${t().say}</button>
+          <button class="ghost dl" disabled hidden>${t().dl}</button>
         </div>
         <div class="bar" hidden><i></i></div>
         <div class="stats"></div>
         <p class="status"></p>
         <audio class="pl" controls hidden></audio>
-        <div class="hh" hidden><h2>${T.hist}</h2><div class="hl"></div></div>
+        <div class="hh" hidden><h2>${t().hist}</h2><div class="hl"></div></div>
         <p class="foot"><a href="https://github.com/fr0stb1rd/ema-lightning-web">ema-lightning-web</a> · model: <a href="https://github.com/canberk7/ema-lightning">canberk7/ema-lightning</a> (Apache-2.0)</p>
       </div>`;
   }
@@ -365,12 +394,26 @@ class App extends Component {
     R.push(ui.observe("audioURL", () => this.paintAudio()));
     R.push(ui.observe("histSeq", () => this.paintHist()));
     this.$(".pl").addEventListener("ended", () => this.onEnded());
+    applyTheme(); fillSelects(this.$("div")); this.applyLang();
+    this.paint(); this.paintHist();
+  }
+  applyLang() { // statik etiketleri guncel dile cevir (dinamik durum bir sonraki adimda guncellenir)
+    const q = (s) => this.$(s);
+    q("h1").textContent = t().title;
+    q(".sub").textContent = t().sub;
+    q(".txt").placeholder = t().ph;
+    q(".exlab").textContent = t().ex;
+    this.$$(".exb").forEach((b, i) => { b.textContent = t().exN(i); });
+    q(".spdlab").textContent = t().speed;
+    fillSelects(this.$("div"));
+    q(".hh h2").textContent = t().hist;
+    if (ui.phase === "ready") ui.status = t().ready;
     this.paint(); this.paintHist();
   }
   paint() {
     const loading = ui.phase === "loading", busy = ui.phase === "busy" || ui.phase === "playing";
     this.$(".say").disabled = loading || busy;
-    this.$(".say").textContent = busy ? T.busy : T.say;
+    this.$(".say").textContent = busy ? t().busy : t().say;
     this.$(".bar").hidden = !(loading || ui.phase === "ready");
     this.$(".status").textContent = ui.status;
     this.paintDl(); this.paintAudio();
@@ -383,7 +426,7 @@ class App extends Component {
     const has = !!ui.audioURL;
     const dl = this.$(".dl");
     dl.hidden = !has; dl.disabled = !has;
-    if (has) dl.textContent = `${T.dl} (${ui.audioSize})`;
+    if (has) dl.textContent = `${t().dl} (${ui.audioSize})`;
   }
   paintHist() {
     const box = this.$(".hh"), list = this.$(".hl");
@@ -393,8 +436,8 @@ class App extends Component {
       <div class="hrow" data-i="${i}">
         <span class="ht">${esc(h.text.slice(0, 60))}${h.text.length > 60 ? "…" : ""}</span>
         <span class="hm">${h.dur} sn • ${h.size}</span>
-        <button class="ghost hplay">${T.replay}</button>
-        ${h.audio ? `<button class="ghost hdl">${T.dl}</button>` : ""}
+        <button class="ghost hplay">${t().replay}</button>
+        ${h.audio ? `<button class="ghost hdl">${t().dl}</button>` : ""}
       </div>`).join("");
   }
   get events() {
@@ -413,7 +456,11 @@ class App extends Component {
         ".hdl": (e) => this.onHistDl(Number(e.target.closest(".hrow").dataset.i)),
       },
       input: { ".txt": (e) => { ui.text = e.target.value; } },
-      change: { ".spd": (e) => { ui.speed = parseFloat(e.target.value) || 1; } },
+      change: {
+        ".spd": (e) => { ui.speed = parseFloat(e.target.value) || 1; },
+        ".theme": (e) => { prefs.theme = e.target.value; savePrefs(); applyTheme(); },
+        ".langsel": (e) => { prefs.lang = e.target.value; savePrefs(); this.applyLang(); },
+      },
     };
   }
   async play() { try { await this.$(".pl").play(); } catch {} }
@@ -428,18 +475,18 @@ class App extends Component {
   }
   async onSay() {
     if (ui.phase === "busy" || ui.phase === "playing" || ui.phase === "loading") return;
-    if (!ui.text.trim()) { ui.phase = "error"; ui.status = T.err(T.empty); return; }
+    if (!ui.text.trim()) { ui.phase = "error"; ui.status = t().err(t().empty); return; }
     try {
       if (!sessText) await loadModels();
       revokePlay();
       if (ui.audioURL) { URL.revokeObjectURL(ui.audioURL); ui.audioURL = ""; }
-      ui.phase = "busy"; ui.status = T.busy;
+      ui.phase = "busy"; ui.status = t().busy;
       const t0 = performance.now();
       const text = ui.text, speed = ui.speed;
       const gen = synthPieces(text, speed, 0);
       const parts = [];
       const first = await gen.next();
-      if (first.done) throw new Error(T.empty);
+      if (first.done) throw new Error(t().empty);
       parts.push(first.value);
       // Ilk parca hemen calsin, kalan arka planda uretilsin (pipelining).
       const pl = this.$(".pl");
@@ -448,7 +495,7 @@ class App extends Component {
       setSrc(pl, pieceURLs.shift());
       setupMedia(text);
       await this.play();
-      ui.phase = "playing"; ui.status = T.playing;
+      ui.phase = "playing"; ui.status = t().playing;
       for await (const p of gen) {
         parts.push(p);
         pieceURLs.push(URL.createObjectURL(toWav(p)));
@@ -464,10 +511,10 @@ class App extends Component {
       hist = hist.slice(0, 20);
       saveHist(); ui.histSeq++;
       ui.phase = "done";
-      ui.status = T.done(dur) + ` (${((performance.now() - t0) / 1000).toFixed(1)} sn)`;
+      ui.status = t().done(dur) + ` (${((performance.now() - t0) / 1000).toFixed(1)} sn)`;
       if (queueDone) setSrc(pl, fullURL);
     } catch (e) {
-      ui.phase = "error"; ui.status = T.err(e.message);
+      ui.phase = "error"; ui.status = t().err(e.message);
     }
   }
   async onHistPlay(i) {
@@ -481,7 +528,7 @@ class App extends Component {
       ui.audioSize = h.size;
       setSrc(pl, ui.audioURL); setupMedia(h.text);
       await this.play();
-      ui.phase = "done"; ui.status = T.done(h.dur);
+      ui.phase = "done"; ui.status = t().done(h.dur);
     } else {
       ui.text = h.text; this.$(".txt").value = h.text;
       ui.speed = h.speed; this.$(".spd").value = h.speed;

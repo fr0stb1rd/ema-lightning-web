@@ -5,15 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="EMA Lightning: tarayıcıda çalışan Türkçe metinden sese (TTS). Sunucu yok, ses cihazdan çıkmaz.">
 <title>EMA Lightning — tarayıcıda Türkçe TTS</title>
+<script>try{var p=JSON.parse(localStorage.getItem("ema-lightning-web-prefs")||"{}");if(p.theme==="light"||p.theme==="dark")document.documentElement.setAttribute("data-theme",p.theme);}catch(e){}</script>
 <style>
-  :root{
-    color-scheme: light dark;
+  :root, :root[data-theme="light"]{
+    color-scheme: light;
     --bg:#ffffff; --fg:#1a1a1a; --muted:#666; --box:#f4f4f5; --line:#e2e2e5;
     --btn:#1a1a1a; --btn-fg:#fff; --btn-dis:#b9b9bd; --bar:#e7e7ea; --fill:#1a1a1a;
     --chip:#eef0ff; --chip-fg:#2b3a9e;
   }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --bg:#141416; --fg:#ececee; --muted:#a1a1aa; --box:#1d1d20; --line:#2c2c31;
+    --btn:#ececee; --btn-fg:#141416; --btn-dis:#4b4b52; --bar:#2a2a30; --fill:#ececee;
+    --chip:#23263d; --chip-fg:#c3cbff;
+  }
   @media (prefers-color-scheme: dark){
-    :root{
+    :root:not([data-theme]){
+      color-scheme: dark;
       --bg:#141416; --fg:#ececee; --muted:#a1a1aa; --box:#1d1d20; --line:#2c2c31;
       --btn:#ececee; --btn-fg:#141416; --btn-dis:#4b4b52; --bar:#2a2a30; --fill:#ececee;
       --chip:#23263d; --chip-fg:#c3cbff;
@@ -49,6 +57,10 @@
   .hrow button{font-size:.8rem;padding:.3rem .6rem}
   .foot{margin-top:1.6rem;font-size:.8rem;color:var(--muted)}
   .foot a{color:inherit}
+  .set{display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 .8rem}
+  .set label{font-size:.82rem;color:var(--muted);display:flex;gap:.3rem;align-items:center}
+  select{font:inherit;font-size:.85rem;color:var(--fg);background:var(--box);
+    border:1px solid var(--line);border-radius:6px;padding:.3rem .4rem}
   [hidden]{display:none!important}
 </style>
 </head>
