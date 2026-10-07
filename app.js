@@ -615,6 +615,10 @@ class App extends Component {
     return {
       click: {
         ".say": () => this.onSay(),
+        "details summary": (e) => { // akordeon: biri acilirken digerleri kapansin
+          const d = e.target.closest("details");
+          this.$$("details").forEach((x) => { if (x !== d && x.open) x.open = false; });
+        },
         ".exb": (e) => {
           ui.text = EXAMPLES[Number(e.target.dataset.i)];
           this.$(".txt").value = ui.text;
