@@ -88,6 +88,16 @@ const fmtMB = (b) => b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.m
 const fmtS = (s) => s < 60 ? `${Math.round(s)}` : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 
+// Indirilen dosya adi: tarih + soylenen yazi (en fazla 40 harf, guvenli karakterler).
+function dlName(text) {
+  const tr = { "ç": "c", "ğ": "g", "ı": "i", "ö": "o", "ş": "s", "ü": "u" };
+  const slug = (text || "ema").replaceAll("İ", "i").replaceAll("I", "ı").toLowerCase()
+    .split("").map((c) => tr[c] || c).join("")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "ema";
+  const d = new Date(), p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}_${slug}.wav`;
+}
+
 /* ---------- kalici ayarlar: tema + dil ---------- */
 function applyTheme() {
   if (prefs.theme === "system") document.documentElement.removeAttribute("data-theme");
@@ -450,7 +460,7 @@ class App extends Component {
         },
         ".dl": () => {
           const a = document.createElement("a");
-          a.href = ui.audioURL; a.download = "ema.wav"; a.click();
+          a.href = ui.audioURL; a.download = dlName(ui.text); a.click();
         },
         ".hplay": (e) => this.onHistPlay(Number(e.target.closest(".hrow").dataset.i)),
         ".hdl": (e) => this.onHistDl(Number(e.target.closest(".hrow").dataset.i)),
@@ -540,7 +550,7 @@ class App extends Component {
     if (!h || !h.audio) return;
     const a = document.createElement("a");
     a.href = URL.createObjectURL(toWav(h.audio));
-    a.download = "ema.wav"; a.click();
+    a.download = dlName(h.text); a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
 }
