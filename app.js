@@ -40,6 +40,7 @@ const T = {
     replay: "Oynat",
     theme: "Tema:", thSystem: "Sistem", thLight: "Açık", thDark: "Koyu",
     lang: "Dil:", langAuto: "Otomatik",
+    disc: `Bu yazılım bilgisayarınıza <b>35,7 MiB</b> model indirir ve cihazınızda çalıştırır. Bu yazılımın hiçbir garantisi yoktur. Bu yazılımı kullanarak <a href="https://github.com/fr0stb1rd/ema-lightning-web/blob/main/LICENSE">LICENSE</a>'ı okumuş ve onaylamış sayılırsınız.`,
   },
   en: {
     title: "⚡ EMA Lightning ONNX (in-browser)",
@@ -60,6 +61,7 @@ const T = {
     replay: "Play",
     theme: "Theme:", thSystem: "System", thLight: "Light", thDark: "Dark",
     lang: "Language:", langAuto: "Auto",
+    disc: `This software downloads <b>35.7 MiB</b> of models to your computer and runs them on your device. This software comes with no warranty. By using it, you agree that you have read and accepted the <a href="https://github.com/fr0stb1rd/ema-lightning-web/blob/main/LICENSE">LICENSE</a>.`,
   },
 };
 const t = () => T[effLang()];
@@ -423,6 +425,7 @@ class App extends Component {
         <audio class="pl" controls hidden></audio>
         <div class="hh" hidden><h2>${t().hist}</h2><div class="hl"></div></div>
         <p class="foot"><a href="https://github.com/fr0stb1rd/ema-lightning-web">ema-lightning-web</a> · model: <a href="https://github.com/canberk7/ema-lightning">canberk7/ema-lightning</a> (Apache-2.0) · onnx: <a href="https://huggingface.co/fr0stb1rd/ema-lightning-web-onnx">ema-lightning-web-onnx</a></p>
+        <p class="foot disc"></p>
       </div>`;
   }
   createdHooks() {
@@ -445,6 +448,7 @@ class App extends Component {
     q(".spdlab").textContent = t().speed;
     fillSelects(this.$("div"));
     q(".hh h2").textContent = t().hist;
+    q(".disc").innerHTML = t().disc;
     if (ui.phase === "ready") ui.status = t().ready;
     this.paint(); this.paintHist();
   }
