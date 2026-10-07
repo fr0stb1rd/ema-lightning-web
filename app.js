@@ -118,16 +118,31 @@ async function loadJSON(path) {
 }
 
 // Cache-first indirme (Transformers.js kalibi): once Cache Storage, yoksa ag + put.
+// Vade 1 gun: suresi dolan kayit silinip yeniden indirilir.
+const CACHE_TTL = 24 * 3600 * 1000; // 1 gun
+const TS_KEY = "ema-lightning-web-cache-ts";
+const cacheTs = () => { try { return JSON.parse(localStorage.getItem(TS_KEY) || "{}"); } catch { return {}; } };
+const stampCache = (url) => {
+  try {
+    const m = cacheTs(); m[url] = Date.now();
+    localStorage.setItem(TS_KEY, JSON.stringify(m));
+  } catch {}
+};
 async function cachedResponse(url) {
   const jar = ("caches" in self) ? await caches.open(CACHE_NAME).catch(() => null) : null;
   if (jar) {
     const hit = await jar.match(url).catch(() => null);
-    if (hit) return { res: hit, fromCache: true, jar };
+    if (hit) {
+      if (Date.now() - (cacheTs()[url] || 0) < CACHE_TTL) return { res: hit, fromCache: true, jar };
+      jar.delete(url).catch(() => {}); // suresi dolmus: sil, agdan indir
+    }
   }
   const net = await fetch(url);
   if (!net.ok) throw new Error(`${url.split("/").pop()} (HTTP ${net.status})`);
-  if (jar && (net.type === "basic" || net.type === "cors"))
+  if (jar && (net.type === "basic" || net.type === "cors")) {
     jar.put(url, net.clone()).catch(() => {});
+    stampCache(url);
+  }
   return { res: net, fromCache: false, jar };
 }
 
