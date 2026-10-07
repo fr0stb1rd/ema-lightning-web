@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EMA Lightning — tarayıcıda Türkçe TTS</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem;line-height:1.5}
+  textarea{width:100%;min-height:120px;font-size:1rem;padding:.6rem}
+  button{font-size:1rem;padding:.6rem 1.2rem;margin:.4rem .2rem 0 0;cursor:pointer}
+  #log{background:#f5f5f5;padding:.6rem;white-space:pre-wrap;font-size:.85rem;min-height:3em}
+  .warn{background:#fff8e1;border:1px solid #e0c36a;padding:.6rem;margin:.6rem 0;font-size:.9rem}
+</style>
+</head>
+<body>
+<h1>⚡ EMA Lightning (tarayıcıda)</h1>
+<div class="warn"><b>Not:</b> sayı/tarih okunuşu (normalizer-tr) bu sayfada yok.
+Sayıları yazıyla yazın (örn. “bin iki yüz elli”). Model tek ses, yalnızca Türkçe.
+Tüm işlem cihazınızda olur; ses dışarı gönderilmez.</div>
+<textarea id="text">Merhaba, size nasıl yardımcı olabilirim?</textarea><br>
+<label>Hız: <input id="speed" type="number" value="1" step="0.25" min="0.25" max="4"></label>
+<button id="say">Sesi Üret</button>
+<button id="dl" disabled>.wav indir</button>
+<p id="status">Model yüklenmedi.</p>
+<audio id="player" controls style="width:100%"></audio>
+<pre id="log"></pre>
+<p><small><a href="https://github.com/fr0stb1rd/ema-lightning-web">GitHub: fr0stb1rd/ema-lightning-web</a> · Model: <a href="https://github.com/canberk7/ema-lightning">canberk7/ema-lightning</a> (Apache-2.0)</small></p>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

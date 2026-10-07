@@ -1,0 +1,8 @@
+# torch CPU tekerlekleri icin PyTorch index'i (PyPI'da torch yok)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.1
+ema-lightning==1.0.3
+onnx==1.23.2
+onnxscript==0.7.2
+onnxruntime==1.30.0
+huggingface_hub==2.1.1
