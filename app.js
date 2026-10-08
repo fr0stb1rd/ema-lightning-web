@@ -15,10 +15,12 @@ const MAX_WORD_FRAMES = 250, MAX_FRAMES = 3000, MAX_LETTERS = 250;
 /* ---------- i18n: varsayilan tarayicidan, kullanici degistirebilir (kalici) ---------- */
 const BROWSER_TR = (navigator.language || "tr").toLowerCase().startsWith("tr");
 const PREFS_KEY = "ema-lightning-web-prefs";
-let prefs = { theme: "system", lang: "auto" };
+let prefs = { theme: "system", lang: "auto", speed: 1, seed: 0 };
 try { Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || "{}")); } catch { }
 if (!["system", "light", "dark"].includes(prefs.theme)) prefs.theme = "system";
 if (!["auto", "tr", "en"].includes(prefs.lang)) prefs.lang = "auto";
+if (!(prefs.speed >= 0.25 && prefs.speed <= 4)) prefs.speed = 1;
+if (!(Number.isInteger(prefs.seed) && prefs.seed >= 0)) prefs.seed = 0;
 const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { } };
 const effLang = () => prefs.lang === "auto" ? (BROWSER_TR ? "tr" : "en") : prefs.lang;
 const T = {
@@ -27,7 +29,8 @@ const T = {
     sub: "Tarayıcıda çevrimdışı Türkçe TTS. Sunucu yok — her şey cihazınızda olur. Sayıları yazıyla yazın (örn. “bin iki yüz elli”).",
     ph: "Okunacak Türkçe metni yazın…",
     ex: "Örnekler:", exT: ["Kısa", "Orta", "Uzun", "Paragraf", "Hikâye"],
-    speed: "Hız:", say: "Sesi Üret", busy: "Üretiliyor…",
+    speed: "Hız:", say: "Sesi Üret", busy: "Üretiliyor…", stop: "Durdur",
+    seed: "Seed:", first: "ilk ses",
     playing: "Çalınıyor (kalan üretiliyor…)",
     loading: "Modeller indiriliyor (ilk sefer, ~36 MB)…",
     ready: "Hazır.",
@@ -104,7 +107,8 @@ const T = {
     sub: "Offline Turkish TTS in your browser. No server — everything runs on your device. Write numbers out in Turkish words (e.g. “bin iki yüz elli”).",
     ph: "Type Turkish text to speak…",
     ex: "Examples:", exT: ["Short", "Medium", "Long", "Paragraph", "Story"],
-    speed: "Speed:", say: "Speak", busy: "Working…",
+    speed: "Speed:", say: "Speak", busy: "Working…", stop: "Stop",
+    seed: "Seed:", first: "first audio",
     playing: "Playing (generating rest…)",
     loading: "Downloading models (first run, ~36 MB)…",
     ready: "Ready.",
@@ -297,7 +301,8 @@ const { Store, Component, GEA_OBSERVER_REMOVERS } = gea;
 class UI extends Store {
   phase = "idle";      // idle|loading|ready|busy|playing|done|error
   text = EXAMPLES[0][0];
-  speed = 1;
+  speed = prefs.speed;
+  seed = prefs.seed;
   pct = 0; stats = ""; status = ""; dlSeq = 0;
   audioURL = ""; audioSize = ""; histSeq = 0;
 }
@@ -435,8 +440,7 @@ function alphabet(text) { // SADELESTIRILMIS: normalizer-tr yok, sayilari yaziyl
   // diger harflerin aksanlari soyulur, vocab'da olmayan her sey bosluk olur.
   const TURKISH = new Set([..."çğıöşü"]);
   const typo = { "’": "'", "‘": "'", "“": '"', "”": '"', "–": "-", "—": "-", "…": "..." };
-  text = text.replace(/[’‘“”–—…]/g, (c) => typo[c] || c)
-    .replaceAll("İ", "i").replaceAll("I", "ı").toLowerCase();
+  text = text.replace(/[’‘“”–—…]/g, (c) => typo[c] || c).toLocaleLowerCase("tr");
   const vs = new Set(VOCAB);
   let out = "";
   for (const ch of text) {
@@ -457,6 +461,12 @@ function piece(text) {
     for (let i = bounds[w]; i < bounds[w + 1]; i++) { cw.push(w); wstart.push(bounds[w]); }
   return { text, ids, cw, wstart };
 }
+/* ---------- calisma ortami: iOS'ta WASM'a zorla ---------- */
+// onnxruntime-web'in WebGPU derlemesi iPhone/iPad'de sekmeyi olduruyor (olculdu);
+// iOS tespiti: UA + dokunmatik Mac (iPadOS kendini Mac gibi gosterir).
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+  (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+const EPS = IS_IOS ? ["wasm"] : ["webgpu", "wasm"];
 const Big = (arr, dims) => new ort.Tensor("int64", BigInt64Array.from(arr.map(BigInt)), dims);
 const F32 = (arr, dims) => new ort.Tensor("float32", Float32Array.from(arr), dims);
 const Bool = (arr, dims) => new ort.Tensor("bool", Uint8Array.from(arr.map(Number)), dims);
@@ -510,7 +520,7 @@ async function loadModels() {
       + (anyCached ? ` • ${t().cached}` : "");
     ui.dlSeq++;
   };
-  const opt = { executionProviders: ["webgpu", "wasm"] };
+  const opt = { executionProviders: EPS };
   const v = await loadJSON("vocab.json");
   VOCAB = v.vocab; STOI = v.stoi; TIMES = v.times; LATENT = v.latent_dim;
   const makeSessions = () => files.map(async (f) => {
@@ -533,6 +543,8 @@ async function loadModels() {
     ui.stats = `100% • ${fmtMB(totalAll)} / ${fmtMB(totalAll)}` + (anyCached ? ` • ${t().cached}` : "");
   }
   ui.dlSeq++;
+  // Isinma: GPU shader'lari bir kez derlensin, ilk uretim hizli baslasin (cikti cope).
+  for await (const _ of synthPieces("Merhaba.", 1, 0)) {}
   ui.phase = "ready"; ui.status = t().ready;
 }
 
@@ -545,7 +557,7 @@ async function* synthPieces(text, speed, seed) {
     const L = p.ids.length;
     const t = await sessText.run({ ids: Big(p.ids, [1, L]), mask: Bool(new Array(L).fill(1), [1, L]) });
     const d = t.h.dims[2];
-    const h = Array.from(t.h.data), dur = Array.from(t.dur.data).map((x) => x / speed);
+    const h = Array.from(await t.h.getData()), dur = Array.from(await t.dur.getData()).map((x) => x / speed);
     const { fw, fp, frames } = plan(p, dur);
     const rand = mulberry32((seed * 1000003 + seedI++) >>> 0);
     const noise = [];
@@ -558,7 +570,7 @@ async function* synthPieces(text, speed, seed) {
       fmask: Bool(new Array(frames).fill(1), [1, frames]),
       noise: F32(noise, [1, TIMES.length, frames, LATENT]),
     });
-    const latents = Array.from(lat.latents.data);
+    const latents = Array.from(await lat.latents.getData());
     const waves = [];
     for (const [ws, we] of windows(frames, FIRST_WINDOW)) {
       const a = Math.max(0, ws - CONTEXT), b = Math.min(frames, we + CONTEXT);
@@ -566,11 +578,16 @@ async function* synthPieces(text, speed, seed) {
       for (let f = 0; f < n; f++)
         for (let c = 0; c < LATENT; c++) z[c * n + f] = latents[(a + f) * LATENT + c];
       const dec = await sessDec.run({ z: new ort.Tensor("float32", z, [1, LATENT, n]) });
-      const hop = dec.audio.data.length / n;
-      waves.push(dec.audio.data.slice((ws - a) * hop, (we - a) * hop));
+      const adata = await dec.audio.getData();
+      const hop = adata.length / n;
+      waves.push(adata.slice((ws - a) * hop, (we - a) * hop));
     }
     if (pause > 0) waves.push(new Float32Array(Math.round(pause * RATE)));
-    yield concat(waves);
+    const audio = concat(waves);
+    // Kelime zamanlari (karaoke icin): cercevenin soyledigi kelime, saniye olarak.
+    const wlist = part.split(" "), wstarts = new Array(wlist.length).fill(null);
+    fw.forEach((w, f) => { if (wstarts[w] === null) wstarts[w] = f / FPS; });
+    yield { audio, words: wlist, starts: wstarts.map((s) => s ?? 0), seconds: audio.length / RATE };
   }
 }
 
@@ -598,20 +615,26 @@ function saveHist() {
   } catch { }
 }
 
-/* ---------- oynatma kuyrugu + media session ---------- */
-let pieceURLs = [], fullURL = "", fullReady = false, queueDone = false;
-function setSrc(pl, url) {
-  if (pl.src === url) return;
-  if (pl.src.startsWith("blob:")) { try { URL.revokeObjectURL(pl.src); } catch { } }
-  if (url) pl.src = url;
-  else { pl.removeAttribute("src"); pl.load(); }
+/* ---------- webaudio ile kesintisiz calis (blob zinciri yok) ---------- */
+let AC = null, PS = null, runId = 0;
+function ensureCtx() {
+  if (!AC) {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: RATE });
+    const master = ctx.createGain();
+    master.connect(ctx.destination);
+    AC = { ctx, master };
+    setupMedia();
+  }
+  return AC;
 }
-function revokePlay() {
-  for (const u of pieceURLs) URL.revokeObjectURL(u);
-  pieceURLs = []; queueDone = false; fullReady = false;
-  if (fullURL) { URL.revokeObjectURL(fullURL); fullURL = ""; }
+function setupMedia() {
+  if (!("mediaSession" in navigator) || !AC) return;
+  try {
+    navigator.mediaSession.setActionHandler("play", () => AC.ctx.resume().catch(() => {}));
+    navigator.mediaSession.setActionHandler("pause", () => AC.ctx.suspend().catch(() => {}));
+  } catch {}
 }
-function setupMedia(text) {
+function setMediaText(text) {
   if (!("mediaSession" in navigator)) return;
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
@@ -619,17 +642,19 @@ function setupMedia(text) {
       artist: "EMA Lightning",
       album: effLang() === "tr" ? "Tarayıcıda Türkçe TTS" : "In-browser Turkish TTS",
     });
-    const pl = document.querySelector(".pl");
-    navigator.mediaSession.setActionHandler("play", () => pl.play());
-    navigator.mediaSession.setActionHandler("pause", () => pl.pause());
-  } catch { }
+  } catch {}
+}
+// Calmakta olani durdur (uretim iptali de bu runId ile olur).
+function stopAll() {
+  runId++;
+  if (PS) { for (const s of PS.sources) try { s.stop(); } catch {} }
+  PS = null;
+  if (ui.phase === "busy" || ui.phase === "playing") { ui.phase = "ready"; ui.status = t().ready; }
 }
 
 /* ---------- onbellek yonetimi ---------- */
 function dropAudio() { // calan + uretilmis sesleri bellekten dusur
-  const pl = document.querySelector(".pl");
-  if (pl) { pl.pause(); setSrc(pl, ""); pl.hidden = true; }
-  revokePlay();
+  stopAll();
   if (ui.audioURL) { URL.revokeObjectURL(ui.audioURL); ui.audioURL = ""; }
 }
 async function clearCache() {
@@ -656,6 +681,7 @@ async function redownload() {
       const jar = await caches.open(CACHE_NAME).catch(() => null);
       if (jar) for (const f of MODEL_FILES) await jar.delete(`${MODEL_BASE}/${f}`).catch(() => {});
     }
+    for (const s of [sessText, sessSound, sessDec]) await s?.release().catch(() => {});
     sessText = sessSound = sessDec = null;
     await loadModels();
   } catch (e) { ui.phase = "error"; ui.status = t().err(e.message); }
@@ -675,14 +701,17 @@ class App extends Component {
         <div class="ex"><span class="exlab">${t().ex}</span>${EXAMPLES.map((x, i) =>
       `<button class="ghost exb" data-i="${i}">${t().exT[i]}</button>`).join("")}</div>
         <div class="row">
-          <label class="speed"><span class="spdlab">${t().speed}</span> <input class="spd" type="number" value="1" step="0.25" min="0.25" max="4"></label>
+          <label class="speed"><span class="spdlab">${t().speed}</span> <input class="spd" type="number" value="${ui.speed}" step="0.25" min="0.25" max="4"></label>
+          <label class="speed"><span class="seedlab">${t().seed}</span> <input class="seed" type="number" value="${ui.seed}" step="1" min="0"></label>
+          <label class="speed"><span class="seedlab">${t().seed}</span> <input class="seed" type="number" value="${ui.seed}" step="1" min="0"></label>
           <button class="say">${t().say}</button>
           <button class="ghost dl" disabled hidden>${t().dl}</button>
         </div>
         <div class="bar" hidden><i></i></div>
         <div class="stats"></div>
         <p class="status"></p>
-        <audio class="pl" controls hidden></audio>
+        <p class="now"></p>
+        <p class="now"></p>
         <div class="hh" hidden><h2>${t().hist}</h2><div class="hl"></div></div>
         <div class="row store">
           <button class="ghost sclr">${t().clearCache}</button>
@@ -700,9 +729,17 @@ class App extends Component {
     R.push(ui.observe("dlSeq", () => this.paintDl()));
     R.push(ui.observe("audioURL", () => this.paintAudio()));
     R.push(ui.observe("histSeq", () => this.paintHist()));
-    this.$(".pl").addEventListener("ended", () => this.onEnded());
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && (ui.phase === "busy" || ui.phase === "playing")) stopAll();
+    });
+    this.autosize();
     applyTheme(); fillSelects(this.$("div")); this.applyLang();
     this.paint(); this.paintHist();
+  }
+  autosize() {
+    const el = this.$(".txt");
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, innerHeight * 0.5) + "px";
   }
   applyLang() { // statik etiketleri guncel dile cevir (dinamik durum bir sonraki adimda guncellenir)
     const q = (s) => this.$(s);
@@ -712,6 +749,7 @@ class App extends Component {
     q(".exlab").textContent = t().ex;
     this.$$(".exb").forEach((b, i) => { b.textContent = t().exT[i]; });
     q(".spdlab").textContent = t().speed;
+    q(".seedlab").textContent = t().seed;
     fillSelects(this.$("div"));
     q(".hh h2").textContent = t().hist;
     q(".disc").innerHTML = t().disc;
@@ -725,9 +763,9 @@ class App extends Component {
     this.paint(); this.paintHist();
   }
   paint() {
-    const loading = ui.phase === "loading", busy = ui.phase === "busy" || ui.phase === "playing";
-    this.$(".say").disabled = loading || busy;
-    this.$(".say").textContent = busy ? t().busy : t().say;
+    const loading = ui.phase === "loading", active = ui.phase === "busy" || ui.phase === "playing";
+    this.$(".say").disabled = loading;
+    this.$(".say").textContent = active ? t().stop : t().say;
     this.$(".bar").hidden = !(loading || ui.phase === "ready");
     this.$(".status").textContent = ui.status;
     this.paintDl(); this.paintAudio();
@@ -787,66 +825,111 @@ class App extends Component {
         ".sredl": () => redownload(),
         ".shist": () => clearHist(),
       },
-      input: { ".txt": (e) => { ui.text = e.target.value; } },
+      input: {
+        ".txt": (e) => { ui.text = e.target.value; this.autosize(); },
+      },
+      keydown: {
+        ".txt": (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); this.onSay(); }
+        },
+      },
       change: {
-        ".spd": (e) => { ui.speed = parseFloat(e.target.value) || 1; },
+        ".spd": (e) => { ui.speed = parseFloat(e.target.value) || 1; prefs.speed = ui.speed; savePrefs(); },
+        ".seed": (e) => {
+          ui.seed = Math.max(0, parseInt(e.target.value) || 0);
+          prefs.seed = ui.seed; savePrefs();
+        },
         ".theme": (e) => { prefs.theme = e.target.value; savePrefs(); applyTheme(); },
         ".langsel": (e) => { prefs.lang = e.target.value; savePrefs(); this.applyLang(); },
       },
     };
   }
-  async play() { try { await this.$(".pl").play(); } catch { } }
-  onEnded() {
-    if (pieceURLs.length) { // siradaki parca
-      setSrc(this.$(".pl"), pieceURLs.shift());
-      this.play();
-    } else {
-      queueDone = true;
-      if (fullReady && fullURL) { setSrc(this.$(".pl"), fullURL); } // bastan dinlemek icin hazir
+  // Kelime kelime vurgulama: calan parcanin kelimeleri sirayla aydinlanir.
+  paintNow(words, idx) {
+    this.$(".now").innerHTML = words.map((w, i) =>
+      `<span class="${i < idx ? "said" : i === idx ? "on" : ""}">${esc(w)}</span>`).join(" ");
+  }
+  follow(id) {
+    if (id !== runId || !PS) return;
+    const t = AC.ctx.currentTime;
+    const piece = PS.pieces.filter((x) => x.start <= t + 0.03).at(-1);
+    if (piece && piece !== PS.shown) {
+      PS.shown = piece; PS.word = -1;
+      this.paintNow(piece.words, -1);
     }
+    if (piece) {
+      const rel = t - piece.start;
+      let w = -1;
+      for (let i = 0; i < piece.words.length; i++) if ((piece.starts[i] ?? Infinity) <= rel) w = i;
+      if (rel > piece.seconds) w = piece.words.length;
+      if (w !== PS.word) { PS.word = w; this.paintNow(piece.words, w); }
+    }
+    if (PS.done && t > PS.endAt + 0.15) {
+      if (id !== runId || !PS) return;
+      PS = null;
+      ui.phase = "done";
+      return;
+    }
+    requestAnimationFrame(() => this.follow(id));
   }
   async onSay() {
-    if (ui.phase === "busy" || ui.phase === "playing" || ui.phase === "loading") return;
+    if (ui.phase === "busy" || ui.phase === "playing") { stopAll(); return; } // Durdur
+    if (ui.phase === "loading") return;
     if (!ui.text.trim()) { ui.phase = "error"; ui.status = t().err(t().empty); return; }
     try {
+      const { ctx, master } = ensureCtx();
+      await ctx.resume().catch(() => {});
       if (!sessText) await loadModels();
-      revokePlay();
+      stopAll();
       if (ui.audioURL) { URL.revokeObjectURL(ui.audioURL); ui.audioURL = ""; }
+      this.$(".now").innerHTML = "";
       ui.phase = "busy"; ui.status = t().busy;
       const t0 = performance.now();
-      const text = ui.text, speed = ui.speed;
-      const gen = synthPieces(text, speed, 0);
-      const parts = [];
-      const first = await gen.next();
-      if (first.done) throw new Error(t().empty);
-      parts.push(first.value);
-      // Ilk parca hemen calsin, kalan arka planda uretilsin (pipelining).
-      const pl = this.$(".pl");
-      pl.hidden = false;
-      pieceURLs = [URL.createObjectURL(toWav(first.value))];
-      setSrc(pl, pieceURLs.shift());
-      setupMedia(text);
-      await this.play();
-      ui.phase = "playing"; ui.status = t().playing;
-      for await (const p of gen) {
-        parts.push(p);
-        pieceURLs.push(URL.createObjectURL(toWav(p)));
+      const text = ui.text, speed = ui.speed, seed = ui.seed;
+      const id = ++runId;
+      const ps = PS = { sources: [], pieces: [], at: ctx.currentTime + 0.08, done: false, endAt: 0, shown: null, word: -1 };
+      const sched = (samples) => {
+        ctx.resume().catch(() => {});
+        const buf = ctx.createBuffer(1, samples.length, RATE);
+        buf.copyToChannel(samples, 0);
+        const src = ctx.createBufferSource();
+        src.buffer = buf; src.connect(master);
+        const start = Math.max(ps.at, ctx.currentTime + 0.02);
+        src.start(start);
+        ps.at = start + buf.duration; ps.endAt = ps.at;
+        ps.sources.push(src);
+        return start;
+      };
+      const chunks = [];
+      let firstMs = null;
+      for await (const part of synthPieces(text, speed, seed)) {
+        if (id !== runId) return; // durduruldu
+        const start = sched(part.audio);
+        ps.pieces.push({ words: part.words, starts: part.starts, seconds: part.seconds, start });
+        chunks.push(part.audio);
+        if (firstMs === null) {
+          firstMs = performance.now() - t0;
+          ui.phase = "playing"; ui.status = t().playing;
+          setMediaText(text);
+          requestAnimationFrame(() => this.follow(id));
+        }
       }
-      const audio = concat(parts);
+      if (id !== runId) return;
+      ps.done = true;
+      const audio = concat(chunks);
       const blob = toWav(audio);
-      fullURL = URL.createObjectURL(blob);
-      fullReady = true;
       ui.audioURL = URL.createObjectURL(blob);
       ui.audioSize = fmtMB(blob.size);
       const dur = (audio.length / RATE).toFixed(1);
+      const el = (performance.now() - t0) / 1000;
+      const rtf = Math.round(audio.length / RATE / Math.max(el, 0.01));
       lastGenText = text;
       hist.unshift({ text, speed, dur, size: ui.audioSize, audio });
       hist = hist.slice(0, 20);
       hist.forEach((h, i) => { if (i > 4) h.audio = null; }); // bellek: sesi sadece son 5 kayitta tut
       saveHist(); ui.histSeq++;
-      ui.phase = "done";
-      ui.status = t().done(dur) + ` (${((performance.now() - t0) / 1000).toFixed(1)} sn)`;
-      if (queueDone) setSrc(pl, fullURL);
+      ui.status = `${t().done(dur)} • ${t().first} ${Math.round(firstMs)} ms • ${rtf}×`;
+      if (ctx.currentTime > ps.endAt) { PS = null; ui.phase = "done"; }
     } catch (e) {
       ui.phase = "error"; ui.status = t().err(e.message);
     }
@@ -856,14 +939,24 @@ class App extends Component {
     const h = hist[i];
     if (!h) return;
     if (h.audio) {
-      const pl = this.$(".pl");
-      pl.hidden = false;
+      stopAll();
       if (ui.audioURL) URL.revokeObjectURL(ui.audioURL);
       ui.audioURL = URL.createObjectURL(toWav(h.audio));
       ui.audioSize = h.size;
-      setSrc(pl, ui.audioURL); setupMedia(h.text);
-      await this.play();
-      ui.phase = "done"; ui.status = t().done(h.dur);
+      const { ctx, master } = ensureCtx();
+      await ctx.resume().catch(() => {});
+      const id = ++runId;
+      const ps = PS = { sources: [], pieces: [], at: 0, done: true, endAt: 0, shown: null, word: -1 };
+      const buf = ctx.createBuffer(1, h.audio.length, RATE);
+      buf.copyToChannel(h.audio, 0);
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.connect(master);
+      ps.at = ctx.currentTime + 0.02;
+      src.start(ps.at); ps.endAt = ps.at + buf.duration; ps.sources.push(src);
+      ps.pieces.push({ words: h.text.split(" "), starts: [], seconds: h.audio.length / RATE, start: ps.at });
+      setMediaText(h.text);
+      ui.phase = "playing"; ui.status = t().playing;
+      requestAnimationFrame(() => this.follow(id));
     } else {
       ui.text = h.text; this.$(".txt").value = h.text;
       ui.speed = h.speed; this.$(".spd").value = h.speed;
