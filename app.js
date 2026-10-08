@@ -937,7 +937,20 @@ class App extends Component {
     if (ui.phase === "busy" || ui.phase === "playing") { stopAll(); return; } // Durdur
     if (ui.phase === "loading") return;
     if (!ui.text.trim()) { ui.phase = "error"; ui.status = t().err(t().empty); return; }
+    const text = ui.text, speed = ui.speed, seed = ui.seed;
     try {
+      // Ayni metin+hiz+seed+motor daha once uretildiyse bastan uretme, kaydi one al.
+      effEPS();
+      const hi = hist.findIndex((h) => h.audio && h.text === text && h.speed === speed &&
+        h.seed === seed && h.be === effEP);
+      if (hi >= 0) {
+        const [h] = hist.splice(hi, 1);
+        hist.unshift(h); saveHist(); ui.histSeq++;
+        lastGenText = h.text;
+        await this.playStored(h); // faz "playing" kalir, bitince follow() done yapar
+        ui.status = t().done(h.dur);
+        return;
+      }
       const { ctx, master } = ensureCtx();
       await ctx.resume().catch(() => {});
       if (!sessText) await loadModels();
@@ -946,7 +959,6 @@ class App extends Component {
       this.$(".now").innerHTML = "";
       ui.phase = "busy"; ui.status = t().busy;
       const t0 = performance.now();
-      const text = ui.text, speed = ui.speed, seed = ui.seed;
       const stats = {};
       const id = ++runId;
       const ps = PS = { sources: [], pieces: [], at: ctx.currentTime + 0.08, done: false, endAt: 0, shown: null, word: -1 };
@@ -986,7 +998,7 @@ class App extends Component {
       const el = (performance.now() - t0) / 1000;
       const rtf = Math.round(audio.length / RATE / Math.max(el, 0.01));
       lastGenText = text;
-      hist.unshift({ text, speed, dur, size: ui.audioSize, audio });
+      hist.unshift({ text, speed, seed, be: effEP, dur, size: ui.audioSize, audio });
       hist = hist.slice(0, 20);
       hist.forEach((h, i) => { if (i > 4) h.audio = null; }); // bellek: sesi sadece son 5 kayitta tut
       saveHist(); ui.histSeq++;
@@ -998,29 +1010,34 @@ class App extends Component {
       ui.phase = "error"; ui.status = t().err(e.message);
     }
   }
+  async playStored(h) {
+    stopAll();
+    if (ui.audioURL) URL.revokeObjectURL(ui.audioURL);
+    ui.audioURL = URL.createObjectURL(toWav(h.audio));
+    ui.audioSize = h.size;
+    const { ctx, master } = ensureCtx();
+    await ctx.resume().catch(() => {});
+    const id = ++runId;
+    const ps = PS = { sources: [], pieces: [], at: 0, done: true, endAt: 0, shown: null, word: -1 };
+    const buf = ctx.createBuffer(1, h.audio.length, RATE);
+    buf.copyToChannel(h.audio, 0);
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(master);
+    ps.at = ctx.currentTime + 0.02;
+    src.start(ps.at); ps.endAt = ps.at + buf.duration; ps.sources.push(src);
+    ps.pieces.push({ words: h.text.split(" "), starts: [], seconds: h.audio.length / RATE, start: ps.at });
+    setMediaText(h.text);
+    ui.phase = "playing"; ui.status = t().playing;
+    requestAnimationFrame(() => this.follow(id));
+  }
   async onHistPlay(i) {
     if (ui.phase === "busy" || ui.phase === "playing" || ui.phase === "loading") return;
     const h = hist[i];
     if (!h) return;
     if (h.audio) {
-      stopAll();
-      if (ui.audioURL) URL.revokeObjectURL(ui.audioURL);
-      ui.audioURL = URL.createObjectURL(toWav(h.audio));
-      ui.audioSize = h.size;
-      const { ctx, master } = ensureCtx();
-      await ctx.resume().catch(() => {});
-      const id = ++runId;
-      const ps = PS = { sources: [], pieces: [], at: 0, done: true, endAt: 0, shown: null, word: -1 };
-      const buf = ctx.createBuffer(1, h.audio.length, RATE);
-      buf.copyToChannel(h.audio, 0);
-      const src = ctx.createBufferSource();
-      src.buffer = buf; src.connect(master);
-      ps.at = ctx.currentTime + 0.02;
-      src.start(ps.at); ps.endAt = ps.at + buf.duration; ps.sources.push(src);
-      ps.pieces.push({ words: h.text.split(" "), starts: [], seconds: h.audio.length / RATE, start: ps.at });
-      setMediaText(h.text);
-      ui.phase = "playing"; ui.status = t().playing;
-      requestAnimationFrame(() => this.follow(id));
+      hist.splice(i, 1); hist.unshift(h); saveHist(); ui.histSeq++;
+      lastGenText = h.text;
+      await this.playStored(h);
     } else {
       ui.text = h.text; this.$(".txt").value = h.text;
       ui.speed = h.speed; this.$(".spd").value = h.speed;
