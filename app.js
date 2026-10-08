@@ -666,7 +666,7 @@ try { hist = JSON.parse(localStorage.getItem(HIST_KEY) || "[]"); } catch { hist 
 function saveHist() {
   try {
     localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(0, 20).map(
-      ({ text, speed, dur, size }) => ({ text, speed, dur, size }))));
+      ({ text, speed, dur, size, words, starts }) => ({ text, speed, dur, size, words, starts }))));
   } catch { }
 }
 
@@ -1014,7 +1014,12 @@ class App extends Component {
       const el = (performance.now() - t0) / 1000;
       const rtf = Math.round(audio.length / RATE / Math.max(el, 0.01));
       lastGenText = text;
-      hist.unshift({ text, speed, seed, be: effEP, dur, size: ui.audioSize, audio });
+      const allWords = [], allStarts = [];
+      for (const pc of ps.pieces)
+        pc.words.forEach((w, i) => { allWords.push(w); allStarts.push(+(pc.start + (pc.starts[i] || 0)).toFixed(3)); });
+      const t00 = allStarts.length ? allStarts[0] : 0; // tekrarda yeni baslangica goreceli
+      hist.unshift({ text, speed, seed, be: effEP, dur, size: ui.audioSize, audio,
+        words: allWords, starts: allStarts.map((s) => +(s - t00).toFixed(3)) });
       hist = hist.slice(0, 20);
       hist.forEach((h, i) => { if (i > 4) h.audio = null; }); // bellek: sesi sadece son 5 kayitta tut
       saveHist(); ui.histSeq++;
@@ -1041,7 +1046,8 @@ class App extends Component {
     src.buffer = buf; src.connect(master);
     ps.at = ctx.currentTime + 0.02;
     src.start(ps.at); ps.endAt = ps.at + buf.duration; ps.sources.push(src);
-    ps.pieces.push({ words: h.text.split(" "), starts: [], seconds: h.audio.length / RATE, start: ps.at });
+    ps.pieces.push({ words: h.words?.length ? h.words : h.text.split(" "),
+      starts: h.starts?.length ? h.starts : [], seconds: h.audio.length / RATE, start: ps.at });
     setMediaText(h.text);
     ui.phase = "playing"; ui.status = t().playing;
     requestAnimationFrame(() => this.follow(id));
