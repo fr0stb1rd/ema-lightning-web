@@ -568,22 +568,38 @@ async function loadModels() {
       + (anyCached ? ` • ${t().cached}` : "");
     ui.dlSeq++;
   };
-  const opt = { executionProviders: effEPS(), graphOptimizationLevel: "all" };
+  // SkipLayerNormFusion, dynamo-ciktisi graflarda spec-disi (1D olmayan beta)
+  // dugum uretip WebGPU kernel validasyonunu patlatabiliyor (ORT #27455 sinifi).
+  // Fzyonu kapat, gerisini oldugu gibi birak.
+  const opt = () => ({ executionProviders: effEPS(), graphOptimizationLevel: "all",
+    extra: { optimization: { disable_specified_optimizers: "SkipLayerNormFusion BiasSkipLayerNormFusion" } } });
   const v = await loadJSON("vocab.json");
   VOCAB = v.vocab; STOI = v.stoi; TIMES = v.times; LATENT = v.latent_dim;
-  const makeSessions = () => files.map(async (f) => {
+  const makeSessions = (o) => files.map(async (f) => {
     const { buf, fromCache } = await fetchBuffer(`${MODEL_BASE}/${f}`,
       (loaded, total) => { state[f] = { loaded, total }; tick(); });
     if (fromCache) anyCached = true;
     state[f].loaded = state[f].total || state[f].loaded; tick();
-    return ort.InferenceSession.create(buf, opt);
+    return ort.InferenceSession.create(buf, o);
   });
+  const createAll = async (o) => {
+    try {
+      return await Promise.all(makeSessions(o));
+    } catch (e) {
+      ort.env.wasm.proxy = false; // worker kurulamazsa ana thread
+      return await Promise.all(makeSessions(o));
+    }
+  };
+  const warm = async () => { for await (const _ of synthPieces("Merhaba.", 1, 0)) {} };
   try {
-    [sessText, sessSound, sessDec] = await Promise.all(makeSessions());
+    [sessText, sessSound, sessDec] = await createAll(opt());
+    await warm();
   } catch (e) {
-    // Worker kurulamazsa ana threade dus.
-    ort.env.wasm.proxy = false;
-    [sessText, sessSound, sessDec] = await Promise.all(makeSessions());
+    if (!effEPS().includes("webgpu")) throw e; // wasm'da da olmuyorsa gercek hata
+    for (const s of [sessText, sessSound, sessDec]) await s?.release().catch(() => {});
+    effEP = "wasm"; // WebGPU cekirdek uyumsuzlugu -> WASM yedegi
+    [sessText, sessSound, sessDec] = await createAll({ ...opt(), executionProviders: ["wasm"] });
+    await warm();
   }
   ui.pct = 100;
   { // son tick throttle'a takilmis olabilir; kapanis satirini burada yaz
@@ -591,8 +607,6 @@ async function loadModels() {
     ui.stats = `100% • ${fmtMB(totalAll)} / ${fmtMB(totalAll)}` + (anyCached ? ` • ${t().cached}` : "");
   }
   ui.dlSeq++;
-  // Isinma: GPU shader'lari bir kez derlensin, ilk uretim hizli baslasin (cikti cope).
-  for await (const _ of synthPieces("Merhaba.", 1, 0)) {}
   ui.phase = "ready"; ui.status = t().ready;
 }
 
