@@ -113,14 +113,23 @@
     }
 
     h1 {
-      font-size: 1.35rem;
+      font-size: 1.3rem;
+      margin: 0
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      flex-wrap: wrap;
       margin: .2rem 0 .3rem
     }
 
     p.sub {
       color: var(--muted);
-      font-size: .92rem;
-      margin: 0 0 1rem
+      font-size: .9rem;
+      margin: 0 0 .8rem
     }
 
     textarea {
@@ -143,6 +152,11 @@
       margin: .6rem 0
     }
 
+    .row .say {
+      flex: 1;
+      min-width: 150px
+    }
+
     label.speed {
       font-size: .9rem;
       color: var(--muted)
@@ -150,7 +164,7 @@
 
     input[type=number] {
       font: inherit;
-      width: 4.2rem;
+      width: 3.6rem;
       color: var(--fg);
       background: var(--box);
       border: 1px solid var(--line);
@@ -198,7 +212,15 @@
       background: var(--bar);
       border-radius: 99px;
       overflow: hidden;
-      margin: .4rem 0
+      margin: .15rem 0 .35rem
+    }
+
+    .out {
+      background: var(--box);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: .55rem .75rem;
+      margin: .6rem 0
     }
 
     .bar>i {
@@ -274,7 +296,7 @@
       display: flex;
       gap: .5rem;
       flex-wrap: wrap;
-      margin: 0 0 .8rem
+      margin: 0
     }
 
     .set label {

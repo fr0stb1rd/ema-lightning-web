@@ -691,27 +691,29 @@ class App extends Component {
   template() {
     return `
       <div id="${this.id}">
-        <h1>${t().title}</h1>
-        <p class="sub">${t().sub}</p>
-        <div class="set">
-          <label>${t().theme} <select class="theme"></select></label>
-          <label>${t().lang} <select class="langsel"></select></label>
+        <div class="top">
+          <h1>${t().title}</h1>
+          <div class="set">
+            <label>${t().theme} <select class="theme"></select></label>
+            <label>${t().lang} <select class="langsel"></select></label>
+          </div>
         </div>
+        <p class="sub">${t().sub}</p>
         <textarea class="txt" placeholder="${t().ph}">${esc(ui.text)}</textarea>
         <div class="ex"><span class="exlab">${t().ex}</span>${EXAMPLES.map((x, i) =>
       `<button class="ghost exb" data-i="${i}">${t().exT[i]}</button>`).join("")}</div>
         <div class="row">
           <label class="speed"><span class="spdlab">${t().speed}</span> <input class="spd" type="number" value="${ui.speed}" step="0.25" min="0.25" max="4"></label>
           <label class="speed"><span class="seedlab">${t().seed}</span> <input class="seed" type="number" value="${ui.seed}" step="1" min="0"></label>
-          <label class="speed"><span class="seedlab">${t().seed}</span> <input class="seed" type="number" value="${ui.seed}" step="1" min="0"></label>
           <button class="say">${t().say}</button>
           <button class="ghost dl" disabled hidden>${t().dl}</button>
         </div>
-        <div class="bar" hidden><i></i></div>
-        <div class="stats"></div>
-        <p class="status"></p>
-        <p class="now"></p>
-        <p class="now"></p>
+        <div class="out" hidden>
+          <div class="bar" hidden><i></i></div>
+          <div class="stats"></div>
+          <p class="status"></p>
+          <p class="now"></p>
+        </div>
         <div class="hh" hidden><h2>${t().hist}</h2><div class="hl"></div></div>
         <div class="row store">
           <button class="ghost sclr">${t().clearCache}</button>
@@ -768,6 +770,7 @@ class App extends Component {
     this.$(".say").textContent = active ? t().stop : t().say;
     this.$(".bar").hidden = !(loading || ui.phase === "ready");
     this.$(".status").textContent = ui.status;
+    this.$(".out").hidden = !(ui.status || ui.stats || this.$(".now").innerHTML);
     this.paintDl(); this.paintAudio();
   }
   paintDl() {
@@ -848,6 +851,7 @@ class App extends Component {
   paintNow(words, idx) {
     this.$(".now").innerHTML = words.map((w, i) =>
       `<span class="${i < idx ? "said" : i === idx ? "on" : ""}">${esc(w)}</span>`).join(" ");
+    this.$(".out").hidden = false;
   }
   follow(id) {
     if (id !== runId || !PS) return;
