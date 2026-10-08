@@ -15,12 +15,13 @@ const MAX_WORD_FRAMES = 250, MAX_FRAMES = 3000, MAX_LETTERS = 250;
 /* ---------- i18n: varsayilan tarayicidan, kullanici degistirebilir (kalici) ---------- */
 const BROWSER_TR = (navigator.language || "tr").toLowerCase().startsWith("tr");
 const PREFS_KEY = "ema-lightning-web-prefs";
-let prefs = { theme: "system", lang: "auto", speed: 1, seed: 0 };
+let prefs = { theme: "system", lang: "auto", speed: 1, seed: 0, backend: "auto" };
 try { Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || "{}")); } catch { }
 if (!["system", "light", "dark"].includes(prefs.theme)) prefs.theme = "system";
 if (!["auto", "tr", "en"].includes(prefs.lang)) prefs.lang = "auto";
 if (!(prefs.speed >= 0.25 && prefs.speed <= 4)) prefs.speed = 1;
 if (!(Number.isInteger(prefs.seed) && prefs.seed >= 0)) prefs.seed = 0;
+if (!["auto", "wasm", "webgpu"].includes(prefs.backend)) prefs.backend = "auto";
 const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { } };
 const effLang = () => prefs.lang === "auto" ? (BROWSER_TR ? "tr" : "en") : prefs.lang;
 const T = {
@@ -31,6 +32,8 @@ const T = {
     ex: "Örnekler:", exT: ["Kısa", "Orta", "Uzun", "Paragraf", "Hikâye"],
     speed: "Hız:", say: "Sesi Üret", busy: "Üretiliyor…", stop: "Durdur",
     seed: "Seed:", first: "ilk ses",
+    backend: "Motor:", beAuto: "Otomatik",
+    mText: "metin", mSound: "ses", mDec: "çöz",
     playing: "Çalınıyor (kalan üretiliyor…)",
     loading: "Modeller indiriliyor (ilk sefer, ~36 MB)…",
     ready: "Hazır.",
@@ -111,6 +114,8 @@ const T = {
     ex: "Examples:", exT: ["Short", "Medium", "Long", "Paragraph", "Story"],
     speed: "Speed:", say: "Speak", busy: "Working…", stop: "Stop",
     seed: "Seed:", first: "first audio",
+    backend: "Engine:", beAuto: "Auto",
+    mText: "text", mSound: "sound", mDec: "decode",
     playing: "Playing (generating rest…)",
     loading: "Downloading models (first run, ~36 MB)…",
     ready: "Ready.",
@@ -339,6 +344,22 @@ function fillSelects(root) {
     .map(([v, l]) => `<option value="${v}"${prefs.theme === v ? " selected" : ""}>${l}</option>`).join("");
   ls.innerHTML = [["auto", t().langAuto], ["tr", "Türkçe"], ["en", "English"]]
     .map(([v, l]) => `<option value="${v}"${prefs.lang === v ? " selected" : ""}>${l}</option>`).join("");
+  paintEp(root);
+}
+function paintEp(root) {
+  const be = root.querySelector(".be");
+  if (be) be.innerHTML = [["auto", t().beAuto], ["webgpu", "WebGPU"], ["wasm", "WASM"]]
+    .map(([v, l]) => `<option value="${v}"${prefs.backend === v ? " selected" : ""}>${l}</option>`).join("");
+}
+async function setBackend(v) {
+  if (ui.phase === "busy" || ui.phase === "playing" || ui.phase === "loading") return;
+  prefs.backend = v; savePrefs();
+  if (!sessText) return; // henuz yuklenmemis: secim bir sonraki yuklemede gecerli
+  try {
+    for (const s of [sessText, sessSound, sessDec]) await s?.release().catch(() => {});
+    sessText = sessSound = sessDec = null;
+    await loadModels();
+  } catch (e) { ui.phase = "error"; ui.status = t().err(e.message); }
 }
 
 async function loadJSON(path) {
@@ -470,7 +491,14 @@ function piece(text) {
 // iOS tespiti: UA + dokunmatik Mac (iPadOS kendini Mac gibi gosterir).
 const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
   (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-const EPS = IS_IOS ? ["wasm"] : ["webgpu", "wasm"];
+let effEP = "wasm";
+function effEPS() {
+  const list = prefs.backend === "auto"
+    ? (IS_IOS ? ["wasm"] : ["webgpu", "wasm"])
+    : [prefs.backend];
+  effEP = list[0];
+  return list;
+}
 const Big = (arr, dims) => new ort.Tensor("int64", BigInt64Array.from(arr.map(BigInt)), dims);
 const F32 = (arr, dims) => new ort.Tensor("float32", Float32Array.from(arr), dims);
 const Bool = (arr, dims) => new ort.Tensor("bool", Uint8Array.from(arr.map(Number)), dims);
@@ -524,7 +552,7 @@ async function loadModels() {
       + (anyCached ? ` • ${t().cached}` : "");
     ui.dlSeq++;
   };
-  const opt = { executionProviders: EPS, graphOptimizationLevel: "all" };
+  const opt = { executionProviders: effEPS(), graphOptimizationLevel: "all" };
   const v = await loadJSON("vocab.json");
   VOCAB = v.vocab; STOI = v.stoi; TIMES = v.times; LATENT = v.latent_dim;
   const makeSessions = () => files.map(async (f) => {
@@ -553,19 +581,23 @@ async function loadModels() {
 }
 
 // Parca parca uretir (pipelining icin async generator): her yield bir parcadir.
-async function* synthPieces(text, speed, seed) {
+async function* synthPieces(text, speed, seed, stats = null) {
   const spoken = alphabet(text);
   let seedI = 0;
+  const tick = (key, t0) => { if (stats) stats[key] = (stats[key] || 0) + performance.now() - t0; };
   for (const [part, pause] of chunk(spoken, speed)) {
     const p = piece(part);
     const L = p.ids.length;
+    let t0 = performance.now();
     const t = await sessText.run({ ids: Big(p.ids, [1, L]), mask: Bool(new Array(L).fill(1), [1, L]) });
     const d = t.h.dims[2];
     const h = Array.from(await t.h.getData()), dur = Array.from(await t.dur.getData()).map((x) => x / speed);
+    tick("text", t0);
     const { fw, fp, frames } = plan(p, dur);
     const rand = mulberry32((seed * 1000003 + seedI++) >>> 0);
     const noise = [];
     for (let k = 0; k < TIMES.length; k++) noise.push(...randn(frames, LATENT, rand));
+    t0 = performance.now();
     const lat = await sessSound.run({
       h: F32(h, [1, L, d]), dur: F32(dur, [1, L]),
       mask: Bool(new Array(L).fill(1), [1, L]),
@@ -575,14 +607,17 @@ async function* synthPieces(text, speed, seed) {
       noise: F32(noise, [1, TIMES.length, frames, LATENT]),
     });
     const latents = Array.from(await lat.latents.getData());
+    tick("sound", t0);
     const waves = [];
     for (const [ws, we] of windows(frames, FIRST_WINDOW)) {
       const a = Math.max(0, ws - CONTEXT), b = Math.min(frames, we + CONTEXT);
       const n = b - a, z = new Float32Array(LATENT * n);
       for (let f = 0; f < n; f++)
         for (let c = 0; c < LATENT; c++) z[c * n + f] = latents[(a + f) * LATENT + c];
+      t0 = performance.now();
       const dec = await sessDec.run({ z: new ort.Tensor("float32", z, [1, LATENT, n]) });
       const adata = await dec.audio.getData();
+      tick("decode", t0);
       const hop = adata.length / n;
       waves.push(adata.slice((ws - a) * hop, (we - a) * hop));
     }
@@ -700,6 +735,7 @@ class App extends Component {
           <div class="set">
             <label>${t().theme} <select class="theme"></select></label>
             <label>${t().lang} <select class="langsel"></select></label>
+            <label><span class="belab">${t().backend}</span> <select class="be"></select> <span class="beeff"></span></label>
           </div>
         </div>
         <p class="sub">${t().sub}</p>
@@ -739,8 +775,15 @@ class App extends Component {
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && (ui.phase === "busy" || ui.phase === "playing")) stopAll();
     });
+    this.$(".spd").addEventListener("dblclick", () => {
+      ui.speed = 1; prefs.speed = 1; savePrefs(); this.$(".spd").value = 1;
+    });
+    this.$(".seed").addEventListener("dblclick", () => {
+      ui.seed = 0; prefs.seed = 0; savePrefs(); this.$(".seed").value = 0;
+    });
     this.autosize();
-    applyTheme(); fillSelects(this.$("div")); this.applyLang();
+    effEPS();
+    applyTheme(); fillSelects(this.el); this.applyLang();
     this.paint(); this.paintHist();
   }
   autosize() {
@@ -757,7 +800,7 @@ class App extends Component {
     this.$$(".exb").forEach((b, i) => { b.textContent = t().exT[i]; });
     q(".spdlab").textContent = t().speed;
     q(".seedlab").textContent = t().seed;
-    fillSelects(this.$("div"));
+    fillSelects(this.el);
     q(".hh h2").textContent = t().hist;
     q(".disc").innerHTML = t().disc;
     q(".faq h2").textContent = t().faq;
@@ -766,6 +809,8 @@ class App extends Component {
     q(".sclr").textContent = t().clearCache;
     q(".sredl").textContent = t().redownload;
     q(".shist").textContent = t().clearHist;
+    q(".belab").textContent = t().backend;
+    this.$(".beeff").textContent = `(${effEP})`;
     if (ui.phase === "ready") ui.status = t().ready;
     this.paint(); this.paintHist();
   }
@@ -775,6 +820,7 @@ class App extends Component {
     this.$(".say").textContent = active ? t().stop : t().say;
     this.$(".bar").hidden = !(loading || ui.phase === "ready");
     this.$(".status").textContent = ui.status;
+    this.$(".beeff").textContent = `(${effEP})`;
     this.$(".out").hidden = !(ui.status || ui.stats || this.$(".now").innerHTML);
     this.paintDl(); this.paintAudio();
   }
@@ -852,6 +898,7 @@ class App extends Component {
           ui.seed = Math.max(0, parseInt(e.target.value) || 0);
           prefs.seed = ui.seed; savePrefs();
         },
+        ".be": (e) => setBackend(e.target.value),
         ".theme": (e) => { prefs.theme = e.target.value; savePrefs(); applyTheme(); },
         ".langsel": (e) => { prefs.lang = e.target.value; savePrefs(); this.applyLang(); },
       },
@@ -900,6 +947,7 @@ class App extends Component {
       ui.phase = "busy"; ui.status = t().busy;
       const t0 = performance.now();
       const text = ui.text, speed = ui.speed, seed = ui.seed;
+      const stats = {};
       const id = ++runId;
       const ps = PS = { sources: [], pieces: [], at: ctx.currentTime + 0.08, done: false, endAt: 0, shown: null, word: -1 };
       const sched = (samples) => {
@@ -916,7 +964,7 @@ class App extends Component {
       };
       const chunks = [];
       let firstMs = null;
-      for await (const part of synthPieces(text, speed, seed)) {
+      for await (const part of synthPieces(text, speed, seed, stats)) {
         if (id !== runId) return; // durduruldu
         const start = sched(part.audio);
         ps.pieces.push({ words: part.words, starts: part.starts, seconds: part.seconds, start });
@@ -943,6 +991,8 @@ class App extends Component {
       hist.forEach((h, i) => { if (i > 4) h.audio = null; }); // bellek: sesi sadece son 5 kayitta tut
       saveHist(); ui.histSeq++;
       ui.status = `${t().done(dur)} • ${t().first} ${Math.round(firstMs)} ms • ${rtf}×`;
+      ui.stats = `${t().mText} ${Math.round(stats.text || 0)}ms • ${t().mSound} ${Math.round(stats.sound || 0)}ms • ${t().mDec} ${Math.round(stats.decode || 0)}ms`;
+      ui.dlSeq++;
       if (ctx.currentTime > ps.endAt) { PS = null; ui.phase = "done"; }
     } catch (e) {
       ui.phase = "error"; ui.status = t().err(e.message);
