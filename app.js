@@ -40,7 +40,7 @@ const T = {
     done: (d) => `Tamamlandı (${d} sn ses).`,
     err: (m) => `Hata: ${m}`,
     empty: "önce metin yazın",
-    dl: "İndir", bald: ".wav indir",
+    dl: "İndir", bald: ".wav indir", wait: "Bekleyin…",
     cached: "önbellekten",
     remain: (s) => `~${s} sn kaldı`, elapsed: (s) => `${s} sn geçti`,
     hist: "Geçmiş", emptyHist: "Henüz üretim yok.",
@@ -130,7 +130,7 @@ const T = {
     done: (d) => `Done (${d} s of audio).`,
     err: (m) => `Error: ${m}`,
     empty: "type some text first",
-    dl: "Download", bald: ".wav download",
+    dl: "Download", bald: ".wav download", wait: "Wait…",
     cached: "from cache",
     remain: (s) => `~${s} s left`, elapsed: (s) => `${s} s elapsed`,
     hist: "History", emptyHist: "Nothing yet.",
@@ -762,8 +762,8 @@ class App extends Component {
           <label class="speed"><span class="spdlab">${t().speed}</span> <input class="spd" type="number" value="${ui.speed}" step="0.25" min="0.25" max="4"></label>
           <label class="speed"><span class="seedlab">${t().seed}</span> <input class="seed" type="number" value="${ui.seed}" step="1" min="0"></label>
           <button class="ghost dice" title="🎲">🎲</button>
+          <button class="ghost dl" disabled>${t().dl}</button>
           <button class="say">${t().say}</button>
-          <button class="ghost dl" disabled hidden>${t().dl}</button>
         </div>
         <div class="out" hidden>
           <div class="bar" hidden><i></i></div>
@@ -834,6 +834,7 @@ class App extends Component {
     const loading = ui.phase === "loading", active = ui.phase === "busy" || ui.phase === "playing";
     this.$(".say").disabled = loading;
     this.$(".say").textContent = active ? t().stop : t().say;
+    this.$(".say").classList.toggle("pulse", !loading && !active);
     this.$(".bar").hidden = !(loading || ui.phase === "ready");
     this.$(".status").textContent = ui.status;
     this.$(".beeff").textContent = `(${effEP})`;
@@ -845,10 +846,12 @@ class App extends Component {
     this.$(".stats").textContent = ui.stats;
   }
   paintAudio() {
-    const has = !!ui.audioURL;
     const dl = this.$(".dl");
-    dl.hidden = !has; dl.disabled = !has;
-    if (has) dl.textContent = `${t().dl} (${ui.audioSize})`;
+    dl.hidden = false;
+    const busy = ui.phase === "busy" || ui.phase === "playing" || ui.phase === "loading";
+    if (ui.audioURL) { dl.disabled = false; dl.textContent = `${t().dl} (${ui.audioSize})`; }
+    else if (busy) { dl.disabled = true; dl.textContent = t().wait; }
+    else { dl.disabled = true; dl.textContent = t().dl; }
   }
   paintHist() {
     const box = this.$(".hh"), list = this.$(".hl");
