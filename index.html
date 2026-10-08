@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description"
     content="EMA Lightning ONNX: tarayıcıda çevrimdışı Türkçe metinden sese (TTS). Offline Turkish TTS in your browser. Sunucu yok, ses cihazdan çıkmaz.">
   <link rel="canonical" href="https://fr0stb1rd.github.io/ema-lightning-web/">
@@ -108,8 +108,13 @@
       color: var(--fg);
       max-width: 640px;
       margin: 0 auto;
-      padding: 1.25rem 1rem 3rem;
+      padding: 1.25rem max(1rem, env(safe-area-inset-left)) calc(3rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-right));
       line-height: 1.55
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--fill);
+      outline-offset: 2px
     }
 
     h1 {

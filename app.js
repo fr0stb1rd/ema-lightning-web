@@ -88,6 +88,8 @@ const T = {
        "GitHub'da açık: ema-lightning-web. Sorun ve öneriler issue olarak bırakılabilir."],
       ["Katkıda bulunabilir miyim?",
        "Evet, repo Apache-2.0; pull request gönderebilirsiniz."],
+      ["Seed ne işe yarıyor?",
+       "Aynı metin ve aynı seed aynı sesi verir. Farklı bir varyasyon için zar butonuyla rastgele seed seçin."],
       ["Temizleme düğmeleri neyi siliyor?",
        "Geçmişteki × kaydı ve sesini siler. “Önbelleği temizle” modelleri ve üretilen sesleri siler, liste kalır. “Geçmişi temizle” listeyi de siler. İndirdiğiniz .wav dosyalarına hiçbiri dokunmaz."],
       ["Sayfadaki düğmeler ne işe yarıyor?",
@@ -166,6 +168,8 @@ const T = {
        "Open on GitHub: ema-lightning-web. Bugs and ideas welcome as issues."],
       ["Can I contribute?",
        "Yes, the repo is Apache-2.0; pull requests welcome."],
+      ["What is the seed for?",
+       "Same text and same seed give the same voice. Use the dice button for a random variation."],
       ["What do the cleanup buttons delete?",
        "The × on a history row deletes that entry and its audio. “Clear cache” deletes the models and generated audio, the list stays. “Clear history” deletes the list too. None of them touch your downloaded .wav files."],
       ["What do the buttons do?",
@@ -520,7 +524,7 @@ async function loadModels() {
       + (anyCached ? ` • ${t().cached}` : "");
     ui.dlSeq++;
   };
-  const opt = { executionProviders: EPS };
+  const opt = { executionProviders: EPS, graphOptimizationLevel: "all" };
   const v = await loadJSON("vocab.json");
   VOCAB = v.vocab; STOI = v.stoi; TIMES = v.times; LATENT = v.latent_dim;
   const makeSessions = () => files.map(async (f) => {
@@ -705,6 +709,7 @@ class App extends Component {
         <div class="row">
           <label class="speed"><span class="spdlab">${t().speed}</span> <input class="spd" type="number" value="${ui.speed}" step="0.25" min="0.25" max="4"></label>
           <label class="speed"><span class="seedlab">${t().seed}</span> <input class="seed" type="number" value="${ui.seed}" step="1" min="0"></label>
+          <button class="ghost dice" title="🎲">🎲</button>
           <button class="say">${t().say}</button>
           <button class="ghost dl" disabled hidden>${t().dl}</button>
         </div>
@@ -823,6 +828,11 @@ class App extends Component {
         ".hdel": (e) => {
           const i = Number(e.target.closest(".hrow").dataset.i);
           if (hist[i]) { hist.splice(i, 1); saveHist(); ui.histSeq++; }
+        },
+        ".dice": () => {
+          ui.seed = Math.floor(Math.random() * 100000);
+          prefs.seed = ui.seed; savePrefs();
+          this.$(".seed").value = ui.seed;
         },
         ".sclr": () => clearCache(),
         ".sredl": () => redownload(),
