@@ -93,6 +93,14 @@ const T = {
        "Evet, repo Apache-2.0; pull request gönderebilirsiniz."],
       ["Seed ne işe yarıyor?",
        "Aynı metin ve aynı seed aynı sesi verir. Farklı bir varyasyon için zar butonuyla rastgele seed seçin."],
+       ["Ses kalitesi (örnekleme hızı) nedir?",
+        "Ses hep 48 kHz stüdyo kalitesinde üretilir; seçecek başka ayar yok, en iyisi zaten varsayılan."],
+       ["Motor seçimi ne işe yarıyor?",
+        "Otomatik varsayılandır ve o an geçerli olanı yanında yazar; iPhone ve iPad her zaman işlemciyi kullanır. Elle WebGPU ya da WASM seçilebilir."],
+       ["Durum satırındaki sayılar ne anlama geliyor?",
+        "“İlk ses” ilk cümlenin kaç milisaniyede duyulduğu, “×” gerçek zamandan kaç kat hızlı üretildiğidir; metin, ses ve çöz satırı her aşamanın süresidir."],
+       ["Örnek düğmeleri nasıl çalışıyor?",
+        "Kısa, Orta, Uzun, Paragraf ve Hikâye kademelerinden her basışta rastgele bir metin gelir; uzunluk soldan sağa artar."],
       ["Temizleme düğmeleri neyi siliyor?",
        "Geçmişteki × kaydı ve sesini siler. “Önbelleği temizle” modelleri ve üretilen sesleri siler, liste kalır. “Geçmişi temizle” listeyi de siler. İndirdiğiniz .wav dosyalarına hiçbiri dokunmaz."],
       ["Sayfadaki düğmeler ne işe yarıyor?",
@@ -175,6 +183,14 @@ const T = {
        "Yes, the repo is Apache-2.0; pull requests welcome."],
       ["What is the seed for?",
        "Same text and same seed give the same voice. Use the dice button for a random variation."],
+       ["What is the audio quality (sample rate)?",
+        "Audio is always produced at 48 kHz studio quality; there is nothing to choose, the best is already the default."],
+       ["What does the engine selector do?",
+        "Auto is the default and shows the active one next to it; iPhone and iPad always use the CPU. WebGPU or WASM can be picked manually."],
+       ["What do the numbers in the status line mean?",
+        "“First audio” is how fast the first sentence is heard in milliseconds, “×” is how many times faster than realtime; the text, sound and decode line shows each stage’s time."],
+       ["How do the example buttons work?",
+        "Each press picks a random text from the Short, Medium, Long, Paragraph or Story tier; length grows left to right."],
       ["What do the cleanup buttons delete?",
        "The × on a history row deletes that entry and its audio. “Clear cache” deletes the models and generated audio, the list stays. “Clear history” deletes the list too. None of them touch your downloaded .wav files."],
       ["What do the buttons do?",
@@ -761,9 +777,9 @@ class App extends Component {
           <button class="ghost sredl">${t().redownload}</button>
           <button class="ghost shist">${t().clearHist}</button>
         </div>
+        <div class="faq"><h2></h2><div class="fl"></div></div>
         <p class="foot"><a href="https://github.com/fr0stb1rd/ema-lightning-web">ema-lightning-web</a> · model: <a href="https://github.com/canberk7/ema-lightning">canberk7/ema-lightning</a> (Apache-2.0) · onnx: <a href="https://huggingface.co/fr0stb1rd/ema-lightning-web-onnx">ema-lightning-web-onnx</a></p>
         <p class="foot disc"></p>
-        <div class="faq"><h2></h2><div class="fl"></div></div>
       </div>`;
   }
   createdHooks() {
