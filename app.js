@@ -1056,14 +1056,16 @@ class App extends Component {
     requestAnimationFrame(() => this.follow(id));
   }
   async onHistPlay(i) {
-    if (ui.phase === "busy" || ui.phase === "playing" || ui.phase === "loading") return;
+    if (ui.phase === "loading") return;
     const h = hist[i];
     if (!h) return;
     if (h.audio) {
+      stopAll(); // calmakta/uretilmekte olani birak, secileni cal
       hist.splice(i, 1); hist.unshift(h); saveHist(); ui.histSeq++;
       lastGenText = h.text;
       await this.playStored(h);
     } else {
+      if (ui.phase === "busy" || ui.phase === "playing") stopAll();
       ui.text = h.text; this.$(".txt").value = h.text;
       ui.speed = h.speed; this.$(".spd").value = h.speed;
       this.onSay(); // ses yoksa (sayfa yenilenmis) bastan uret
